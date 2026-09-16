@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The top-level product truth for the Pebble Cryonics Monitor, written down
+The top-level product truth for Standby (formerly Pebble Cryonics Monitor), written down
 from the owner's initial brief (2026-08-05) and the two decision rounds
 that refined it. Mechanism-level behavior lives in the sibling specs
 (`detector-ladder`, `watch-phone-protocol`, `escalation-and-deadman`,
@@ -152,3 +152,30 @@ detection quality is described.
 - **WHEN** any user-facing text describes pulse-loss detection
 - **THEN** it describes loss of pulse *signal* with its known failure
   modes, and never promises detection of cardiac arrest
+
+### Requirement: Product identity and positioning
+The product SHALL be named **Standby** and communicated through the
+Core Job it performs — "have the people I choose know within minutes
+if I become unresponsive" — with the one-liner "an unresponsiveness
+alarm for Pebble: if your pulse signal and movement stop, the people
+you choose are alerted within minutes; no automatic emergency call".
+The target segment is unchanged: people whose emergency plan is a
+specific person or organisation rather than an ambulance, with
+cryonicists (standby-organisation escalation) as the first and
+flagship sub-segment; cryonics SHALL be presented as the flagship story,
+not as one entry in a list of applications. The name SHALL NOT imply
+vital-sign or medical monitoring. Machine identifiers (Android
+application id and package, watchapp UUID, server module and container
+names) SHALL keep their historical values so installs and enrollments
+carry over across the rename.
+
+#### Scenario: A Pebble owner reads the listing
+- **WHEN** someone outside the cryonics community reads the name and
+  one-liner
+- **THEN** they can tell what the product does and whether it is for
+  them without knowing what cryonics is
+
+#### Scenario: Existing installs survive the rename
+- **WHEN** a user updates the companion and watchapp across the rename
+- **THEN** enrollment, contacts, settings and soak history are intact
+  and the apps show the new name

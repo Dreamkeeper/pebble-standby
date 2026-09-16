@@ -294,7 +294,7 @@ class DebugActivity : AppCompatActivity() {
                 startActivity(Intent.createChooser(
                     Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "cryomonitor-soak")
+                        putExtra(Intent.EXTRA_SUBJECT, "standby-soak")
                         putExtra(Intent.EXTRA_TEXT, renderSoak())
                     }, "Share soak report"))
             }
@@ -473,7 +473,7 @@ class DebugActivity : AppCompatActivity() {
             val ver = runCatching {
                 packageManager.getPackageInfo(packageName, 0).versionName
             }.getOrNull() ?: "?"
-            append("# cryomonitor soak ${Date()} (${Build.MODEL}, companion v$ver)\n")
+            append("# standby soak ${Date()} (${Build.MODEL}, companion v$ver)\n")
             append("window: ${"%.1f".format(days)} days since " +
                 "${if (resetAt == 0L) "-" else Date(resetAt).toString()}\n")
             append("service starts: boot=${soak.get(SoakStats.STARTS_BOOT)} " +

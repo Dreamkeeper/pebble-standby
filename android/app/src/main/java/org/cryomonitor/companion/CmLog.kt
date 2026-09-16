@@ -74,7 +74,7 @@ object CmLog {
         val dir = File(context.cacheDir, "share").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
         val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
-        val out = File(dir, "cryomonitor-log-$stamp.txt")
+        val out = File(dir, "standby-log-$stamp.txt")
         val files = logDir?.listFiles { f -> f.name.startsWith("cm-") && f.name.endsWith(".log") }
             ?.sortedBy { it.name } ?: emptyList()
         val sb = StringBuilder()

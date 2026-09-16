@@ -1,4 +1,4 @@
-# Pebble Cryonics Monitor — Product & Architecture Plan
+# Standby (formerly Pebble Cryonics Monitor) — Product & Architecture Plan
 
 ## Context
 

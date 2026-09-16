@@ -90,7 +90,7 @@ async def poll_loop(bot_token: str, store, on_ack: Callable[[str], Awaitable[str
                     await asyncio.to_thread(
                         _api, bot_token, "sendMessage",
                         {"chat_id": chat_id,
-                         "text": ("Cryonics Monitor bot. Your chat id is: "
+                         "text": ("Standby bot. Your chat id is: "
                                   f"{chat_id}\nGive this number to the "
                                   "wearer or operator so they can add you "
                                   "as an emergency contact.")}, 15)

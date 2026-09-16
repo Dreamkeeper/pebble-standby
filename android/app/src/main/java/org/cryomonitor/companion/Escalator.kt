@@ -28,7 +28,7 @@ class Escalator(private val context: Context, private val settings: SettingsStor
         val loc = lastKnownLocation()
         val mapsLink = loc?.let { "https://maps.google.com/?q=${it.first},${it.second}" }
         val prefix = if (isTest) "[TEST] " else ""
-        val text = prefix + "CRYONICS MONITOR ALERT: ${settings.wearerName} — " +
+        val text = prefix + "STANDBY ALERT: ${settings.wearerName} — " +
             "$detector alarm, wearer unresponsive. " +
             (mapsLink ?: "Location pending.") +
             " Please respond / call them now."
@@ -37,7 +37,7 @@ class Escalator(private val context: Context, private val settings: SettingsStor
     }
 
     fun cancel(reason: String) {
-        val text = "Cryonics Monitor: previous alert CANCELLED ($reason). " +
+        val text = "Standby: previous alert CANCELLED ($reason). " +
             "${settings.wearerName} is OK."
         sendSmsToAll(text)
         sendTelegramToAll(text)

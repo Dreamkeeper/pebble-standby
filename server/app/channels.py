@@ -76,7 +76,7 @@ class NtfyChannel:
     def deliver(self, address: str, text: str, ack_url: str | None,
                 ack_token: str | None) -> bool:
         headers = {"Priority": "urgent", "Tags": "rotating_light",
-                   "Title": "Cryonics Monitor"}
+                   "Title": "Standby"}
         if ack_url:
             # http action: one tap fires the POST from the notification —
             # the ack endpoint no longer mutates on GET (link scanners).
@@ -105,8 +105,8 @@ class EmailChannel:
         msg = EmailMessage()
         msg["From"] = self.sender
         msg["To"] = address
-        msg["Subject"] = ("[TEST] Cryonics Monitor" if text.startswith("[TEST]")
-                          else "[ALERT] Cryonics Monitor")
+        msg["Subject"] = ("[TEST] Standby" if text.startswith("[TEST]")
+                          else "[ALERT] Standby")
         content = text
         if ack_url:
             content += f"\n\nAcknowledge: {ack_url}"

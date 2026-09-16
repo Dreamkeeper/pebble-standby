@@ -894,7 +894,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
             else -> R.drawable.ic_stat_monitor
         }
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Cryonics Monitor")
+            .setContentTitle("Standby")
             .setContentText(text)
             .setSmallIcon(icon)
             .setOngoing(true)
@@ -911,7 +911,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
     private fun notifyFault(text: String) {
         val nm = getSystemService(NotificationManager::class.java)
         nm.notify(NOTIF_FAULT_ID, Notification.Builder(this, CHANNEL_FAULT)
-            .setContentTitle("Cryonics Monitor FAULT")
+            .setContentTitle("Standby FAULT")
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setSmallIcon(android.R.drawable.stat_notify_error)

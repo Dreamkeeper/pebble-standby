@@ -32,7 +32,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 log = logging.getLogger("cryomonitor")
 
-app = FastAPI(title="Pebble Cryonics Monitor Server", version="0.3.0")
+app = FastAPI(title="Standby Server", version="0.3.1")
 app.include_router(wearers_router)
 app.include_router(ui.router)
 

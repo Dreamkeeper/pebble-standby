@@ -31,7 +31,7 @@ class LogActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this@LogActivity,
                         "Could not write log file", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
-                    Ui.shareFile(this@LogActivity, f, "Cryonics Monitor logs", "Share logs")
+                    Ui.shareFile(this@LogActivity, f, "Standby logs", "Share logs")
                 }
             }
         })

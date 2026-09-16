@@ -16,7 +16,7 @@ Reading the phone notification: `watch ✓ 87% · synced 4m ago · server ✓`
 
 ## T1 — Watch ↔ phone link (2 min)
 
-1. Open Cryonics Monitor on the watch.
+1. Open Standby on the watch.
 2. Within ~1 min the phone notification shows `synced …s ago` fresh, and
    watch battery appears.
 3. Close the watchapp (BACK). The watchface returns. Expected: `synced`

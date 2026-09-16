@@ -1,13 +1,13 @@
 {
-  "name": "cryonics-monitor",
-  "author": "Pebble Cryonics Monitor contributors",
-  "version": "0.5.6",
+  "name": "standby",
+  "author": "Standby contributors",
+  "version": "0.5.7",
   "license": "GPL-3.0",
   "private": true,
   "keywords": ["pebble-app"],
   "dependencies": {},
   "pebble": {
-    "displayName": "Cryonics Monitor",
+    "displayName": "Standby",
     "uuid": "7f8e2c40-3a55-4d9b-9f21-6b1e0c2d4a90",
     "sdkVersion": "3",
     "enableMultiJS": false,

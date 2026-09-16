@@ -1,4 +1,4 @@
-/* Pebble Cryonics Monitor — detector core implementation. See detectors.h. */
+/* Standby (formerly Pebble Cryonics Monitor) — detector core implementation. See detectors.h. */
 #include "detectors.h"
 
 #if defined(_MSC_VER)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cryonics Monitor</title>
+  <title>Standby</title>
   <script src="/ui/static/htmx.min.js"></script>
   <style>
     :root { color-scheme: light dark; }
@@ -38,7 +38,7 @@
 </head>
 <body {% if op %}hx-headers='{"X-CSRF": "{{ op.csrf }}"}'{% endif %}>
 <nav>
-  <span class="brand">⚕ Cryonics Monitor</span>
+  <span class="brand">◉ Standby</span>
   {% if op %}
     <a href="/ui/">Fleet</a>
     {% if op.role == 'admin' %}

@@ -31,7 +31,7 @@
     <application
         android:name=".CmApp"
         android:icon="@mipmap/ic_launcher"
-        android:label="Cryonics Monitor"
+        android:label="Standby"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.CryoMonitor">
 

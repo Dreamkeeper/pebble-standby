@@ -1,5 +1,5 @@
 /*
- * Pebble Cryonics Monitor — detector core.
+ * Standby (formerly Pebble Cryonics Monitor) — detector core.
  *
  * Platform-independent: no Pebble headers, no dynamic allocation, no
  * floating point. The same code runs inside the 10.5 kB background worker,

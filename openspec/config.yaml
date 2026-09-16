@@ -1,7 +1,8 @@
 schema: spec-driven
 
 context: |
-  Pebble Cryonics Monitor: a 24/7 unresponsiveness alarm for cryonicists.
+  Standby (formerly Pebble Cryonics Monitor): a 24/7 unresponsiveness alarm for Pebble;
+  first segment cryonicists, positioned for anyone whose plan is "call my people, not an ambulance".
   Monorepo: watchapp/ (C, Pebble SDK 4.x, background worker, platforms
   emery/diorite/flint/gabbro), android/ (Kotlin companion, PebbleKit2
   primary + PebbleKit Classic fallback), server/ (Python FastAPI,
