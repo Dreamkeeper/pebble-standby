@@ -141,6 +141,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
         // app or answered a poll — so it clears the provisioning fault
         // (review 2026-08-29 finding 5).
         workerProvisionFaulted = false
+        workerLastProofT = System.currentTimeMillis()
         (data[PebbleTransport.KEY_WATCH_BATTERY] as? Int)?.let { noteWatchBattery(it) }
 
         when (data[PebbleTransport.KEY_MSG_TYPE] as? Int) {
@@ -363,6 +364,14 @@ class MonitorService : Service(), PebbleTransport.Listener {
 
     @Volatile private var lastPreAlarmEpisode = 0
     @Volatile private var lastDlRecoveryT = 0L
+    /** Last worker proof of ANY kind (DL record or open-app message). */
+    @Volatile private var workerLastProofT = 0L
+    private var storeSyncMisses = 0
+    private var storeSyncFaultNotified = false
+    private var lastSyncLaunchDataT = -1L
+
+    fun storeMode(): Boolean = PebbleAppPolicy.storeMode(
+        PebbleAppPolicy.parse(settings.pebbleAppMode), settings.dlEverSeen)
 
     private fun ackEpisode(ep: Int) {
         watchLink.send(mapOf(
@@ -515,10 +524,9 @@ class MonitorService : Service(), PebbleTransport.Listener {
             // worker may have died before it ever reported. The
             // eviction watchdog above can't fire (workerLastRecT==0), so
             // without this the phone looks healthy while no detector runs.
-            if (watchConnected && workerLastRecT == 0L &&
-                serviceStartedT > 0 &&
-                (System.currentTimeMillis() - serviceStartedT) / 1000 >
-                    WORKER_PROVISION_GRACE_S && !workerProvisionFaulted) {
+            if (PebbleAppPolicy.provisioningFault(watchConnected, workerLastProofT,
+                    serviceStartedT, System.currentTimeMillis(),
+                    WORKER_PROVISION_GRACE_S, workerProvisionFaulted)) {
                 workerProvisionFaulted = true
                 CmLog.w(TAG, "no worker proof within provisioning grace")
                 notifyFault("No sign of the watch background worker since " +
@@ -540,11 +548,29 @@ class MonitorService : Service(), PebbleTransport.Listener {
             // than the sync interval and the link is up, launch the
             // watchapp briefly — it heartbeats fresh state and the
             // auto-launch guard returns the watchface in seconds.
-            val syncMs = settings.watchSyncIntervalMin * 60_000L
-            if (syncMs > 0 && watchConnected && lastWatchDataT > 0 &&
-                System.currentTimeMillis() - lastWatchDataT > syncMs) {
-                selfHealLaunch("periodic sync " +
-                    "(${settings.watchSyncIntervalMin}m interval)")
+            val store = storeMode()
+            val syncMin = PebbleAppPolicy.effectiveSyncMin(store, settings.watchSyncIntervalMin)
+            if (syncMin > 0 && watchConnected && serviceStartedT > 0 &&
+                System.currentTimeMillis() >
+                    PebbleAppPolicy.syncDueAt(lastWatchDataT, serviceStartedT, syncMin)) {
+                // Store-app mode: the sync launch is the only liveness
+                // signal, so two launches in a row that produce no watch
+                // data are a fault (once) — the stock app cannot tell us
+                // more than that.
+                if (store) {
+                    storeSyncMisses = if (lastWatchDataT == lastSyncLaunchDataT) storeSyncMisses + 1 else 0
+                    lastSyncLaunchDataT = lastWatchDataT
+                    if (PebbleAppPolicy.syncMissFault(storeSyncMisses) && !storeSyncFaultNotified) {
+                        storeSyncFaultNotified = true
+                        soak.inc(SoakStats.WORKER_FAULTS)
+                        CmLog.w(TAG, "store-app mode: $storeSyncMisses sync launches without watch data")
+                        notifyFault("The watch has not answered two sync launches in a " +
+                            "row. Open the watchapp once to confirm it is running, or " +
+                            "reboot the watch. (Stock Pebble app: no worker telemetry.)")
+                    } else if (storeSyncMisses == 0) storeSyncFaultNotified = false
+                }
+                selfHealLaunch("periodic sync (${syncMin}m interval" +
+                    (if (store) ", store-app mode)" else ")"))
             }
             updateNotification()
             delay(15_000) // also re-posts the notification (OSD pattern)
@@ -720,6 +746,11 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 // battery, and the server's watch_data_age become honest.
                 workerLastRecT = System.currentTimeMillis()
                 lastWatchDataT = workerLastRecT
+                workerLastProofT = workerLastRecT
+                if (!settings.dlEverSeen) {
+                    settings.dlEverSeen = true
+                    CmLog.i(TAG, "first worker record: Pebble app forwards DataLogging (patched)")
+                }
                 soak.inc(SoakStats.DL_RECORDS)
                 intent.getIntExtra("battery", -1)
                     .takeIf { it in 0..100 }?.let { noteWatchBattery(it) }
@@ -918,7 +949,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
             suspLeft > 0 -> "SUSPENDED ${(suspLeft / 60000) + 1}m · "
             else -> ""
         }
-        return "$susp$link$wb$sync · $srv"
+        val mode = if (storeMode()) " · store app" else ""
+        return "$susp$link$wb$sync · $srv$mode"
     }
 
     override fun onDestroy() {

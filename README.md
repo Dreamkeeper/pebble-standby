@@ -43,7 +43,7 @@ never auto-dials them.
 
 **Field-testing (soak) phase** — the full chain (watch → phone → server →
 Telegram/ntfy) runs 24/7 on real hardware: Pebble Time 2, Android 16 phone,
-self-hosted server. Current builds: watchapp **0.5.6**, companion **0.6.2**,
+self-hosted server. Current builds: watchapp **0.5.6**, companion **0.6.3**,
 all in [`dist/`](dist/).
 
 Done since the pre-alpha milestone:

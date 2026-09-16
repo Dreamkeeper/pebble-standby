@@ -173,6 +173,11 @@ class MainActivity : AppCompatActivity() {
             "briefly opens to refresh liveness + battery when data is " +
             "older than this.")
         val fSync = advField("60", settings.watchSyncIntervalMin.toString())
+        advLabel("Pebble app on this phone: auto / patched / store. " +
+            "'store' = stock Pebble app (no worker telemetry; liveness via " +
+            "sync launches, hourly if the interval above is 0). Auto " +
+            "switches to 'patched' once worker records arrive.")
+        val fMode = advField("auto", settings.pebbleAppMode)
 
         advanced.addView(Button(this).apply {
             text = "Save"
@@ -189,6 +194,8 @@ class MainActivity : AppCompatActivity() {
                 settings.wearerName = fName.text.toString().trim()
                 settings.watchSyncIntervalMin =
                     fSync.text.toString().trim().toIntOrNull() ?: 60
+                settings.pebbleAppMode = fMode.text.toString().trim().lowercase()
+                    .takeIf { it in setOf("auto", "patched", "store") } ?: "auto"
                 startService(Intent(this@MainActivity, MonitorService::class.java)
                     .setAction(MonitorService.ACTION_HEARTBEAT_NOW))
                 Toast.makeText(this@MainActivity,

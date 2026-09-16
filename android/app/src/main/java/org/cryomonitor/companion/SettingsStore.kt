@@ -70,4 +70,16 @@ class SettingsStore(context: Context) {
     var watchSyncIntervalMin: Int
         get() = p.getInt("watch_sync_interval_min", 60)
         set(v) = p.edit().putInt("watch_sync_interval_min", v.coerceIn(0, 1440)).apply()
+
+    /** "auto" | "patched" | "store" — which Pebble app is on the phone
+     *  (see PebbleAppPolicy). Auto resolves from dlEverSeen. */
+    var pebbleAppMode: String
+        get() = p.getString("pebble_app_mode", "auto") ?: "auto"
+        set(v) = p.edit().putString("pebble_app_mode", v).apply()
+
+    /** Set once the first worker DataLogging record arrives: proof the
+     *  phone's Pebble app forwards worker telemetry. */
+    var dlEverSeen: Boolean
+        get() = p.getBoolean("dl_ever_seen", false)
+        set(v) = p.edit().putBoolean("dl_ever_seen", v).apply()
 }

@@ -31,6 +31,7 @@ import java.util.Locale
  */
 class DebugActivity : AppCompatActivity() {
 
+
     private lateinit var settings: SettingsStore
 
     // ---- S4 sensor lab state ----
@@ -482,7 +483,10 @@ class DebugActivity : AppCompatActivity() {
                 "downtime=${soak.get(SoakStats.DOWNTIME_S) / 60}m " +
                 "link-faults=${soak.get(SoakStats.LINK_FAULTS)} " +
                 "self-heals=${soak.get(SoakStats.SELF_HEALS)}\n")
-            append("worker: dl-records=${soak.get(SoakStats.DL_RECORDS)} " +
+            val storeTag = if (PebbleAppPolicy.storeMode(
+                    PebbleAppPolicy.parse(settings.pebbleAppMode), settings.dlEverSeen))
+                " (store-app mode)" else ""
+            append("worker: dl-records=${soak.get(SoakStats.DL_RECORDS)}$storeTag " +
                 "faults=${soak.get(SoakStats.WORKER_FAULTS)} " +
                 "sensor-faults=${soak.get(SoakStats.SENSOR_FAULTS)} " +
                 "notworn-nags=${soak.get(SoakStats.NOTWORN_NAGS)}\n")
@@ -761,10 +765,13 @@ class DebugActivity : AppCompatActivity() {
             .filter { it.isNotBlank() && !it.startsWith("#") }
             .joinToString("\n")
         refreshRecovery()
+        val mode = PebbleAppPolicy.parse(settings.pebbleAppMode)
+        val storeNow = PebbleAppPolicy.storeMode(mode, settings.dlEverSeen)
+        val syncMin = PebbleAppPolicy.effectiveSyncMin(storeNow, settings.watchSyncIntervalMin)
         s5Line.text = if (MonitorService.s5RecordCount == 0)
-            "No worker DataLogging records yet. Keep the watchapp CLOSED " +
-            "and wear the watch ≥1 h. No records after that = the Core app " +
-            "does not forward DataLogging (S5 NO-GO, fallback planned)."
+            PebbleAppPolicy.describe(mode, settings.dlEverSeen, syncMin) +
+            (if (storeNow) "" else " No records yet: keep the watchapp CLOSED and " +
+                "wear the watch ≥1 h; the patched Pebble app delivers them in ~5 min batches.")
         else {
             val age = (System.currentTimeMillis() -
                 MonitorService.s5LastRecT) / 1000
