@@ -401,7 +401,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
         serverReachable = escId != null
         // SMS fires regardless (redundant path); Telegram-direct only when
         // the server (which owns Telegram with ACK buttons) is unreachable.
-        escalator.fire(detector, isTest)
+        escalator.fire(detector, isTest, serverReachable = escId != null)
         updateNotification()
     }
 

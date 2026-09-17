@@ -50,7 +50,7 @@ Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
 heartbeat gaps). Current builds: watchapp **0.5.7**, companion
-**0.6.5**, all in [`dist/`](dist/).
+**0.6.6**, all in [`dist/`](dist/).
 
 What the field testing taught, each with a fix and a test:
 
@@ -105,7 +105,8 @@ cd android && gradle assembleSideloadRelease
 # -> app/build/outputs/apk/sideload/release/app-sideload-release.apk
 ```
 
-**Server** (Docker; see [docs/DEPLOY-SYNOLOGY.md](docs/DEPLOY-SYNOLOGY.md)
+**Server** (Docker; see [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) for a public
+VPS with automatic HTTPS, [docs/DEPLOY-SYNOLOGY.md](docs/DEPLOY-SYNOLOGY.md)
 for Synology Container Manager and
 [docs/SERVER-DEPLOYMENT.md](docs/SERVER-DEPLOYMENT.md) for the update
 procedure):
@@ -116,7 +117,7 @@ docker compose up -d --build        # API on :8080, ntfy on :8090
 ```
 
 Tests: `watchapp/tests` (host C, gcc/MSVC — 216 checks), `server/tests`
-(pytest — 73 checks), and `android` JVM unit tests (`gradle test`, 27).
+(pytest — 76 checks), and `android` JVM unit tests (`gradle test`, 27).
 
 Internal identifiers (Android package `org.cryomonitor.companion`,
 server module and container names, the watchapp UUID) deliberately keep

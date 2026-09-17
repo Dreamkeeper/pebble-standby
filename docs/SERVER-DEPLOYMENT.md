@@ -63,6 +63,11 @@ layer that cannot die with it.**
 
 ### Do we need code changes?
 
+> **Implemented 2026-09-17:** the ready-to-run kit is
+> `server/docker-compose.vps.yml` + `server/Caddyfile` +
+> `server/scripts/backup.sh`; the step-by-step is
+> [DEPLOY-VPS.md](DEPLOY-VPS.md). The notes below are the rationale.
+
 Almost none — the compose file is host-agnostic. Needed for a public
 VPS (small, listed as tasks):
 

@@ -88,4 +88,10 @@ class SettingsStore(context: Context) {
     var dlLastEpoch: Long
         get() = p.getLong("dl_last_epoch", 0L)
         set(v) = p.edit().putLong("dl_last_epoch", v).apply()
+
+    /** Phone-direct Telegram fired for the current alarm (server was
+     *  unreachable): the cancel must retract there too. */
+    var telegramDirectFired: Boolean
+        get() = p.getBoolean("telegram_direct_fired", false)
+        set(v) = p.edit().putBoolean("telegram_direct_fired", v).apply()
 }

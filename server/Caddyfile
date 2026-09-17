@@ -1,0 +1,16 @@
+# Reverse proxy for the VPS deployment (docker-compose.vps.yml).
+# Caddy obtains and renews Let's Encrypt certificates on its own; the
+# domain's DNS A/AAAA record must point at this machine and ports 80 and
+# 443 must be reachable from the internet.
+
+{$CM_DOMAIN} {
+	encode gzip
+	reverse_proxy monitor:8080
+}
+
+# Optional self-hosted push server for contacts. Leave CM_NTFY_DOMAIN
+# unset to keep it private (the placeholder host is never reachable from
+# outside); set it to a second DNS name to let contacts subscribe.
+{$CM_NTFY_DOMAIN:ntfy.localhost} {
+	reverse_proxy ntfy:80
+}

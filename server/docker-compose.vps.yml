@@ -1,0 +1,47 @@
+# Standby server on a public VPS — overlay on top of docker-compose.yml.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+#   (or put COMPOSE_FILE=docker-compose.yml:docker-compose.vps.yml in .env
+#    and use plain `docker compose ...`)
+#
+# Adds Caddy for HTTPS (automatic Let's Encrypt certificates) and pins the
+# application ports to loopback. The pinning is deliberate and is done
+# HERE, not in a firewall: Docker publishes ports through its own iptables
+# chains, so `ufw deny 8080` does NOT protect a published port.
+#
+# Requires Docker Compose >= 2.24 (the `!override` tag). See
+# docs/DEPLOY-VPS.md.
+services:
+  monitor:
+    # Only Caddy (same compose network) and the VPS itself reach the app.
+    ports: !override
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Trust X-Forwarded-For from the reverse proxy so rate limits and
+      # audit events see the real client address. Safe because nothing
+      # but Caddy and loopback can reach port 8080 (see `ports` above).
+      FORWARDED_ALLOW_IPS: "*"
+
+  ntfy:
+    ports: !override
+      - "127.0.0.1:8090:80"
+    environment:
+      NTFY_BASE_URL: https://${CM_NTFY_DOMAIN:-ntfy.localhost}
+      NTFY_BEHIND_PROXY: "true"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - monitor
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CM_DOMAIN: ${CM_DOMAIN:?set CM_DOMAIN in .env (e.g. standby.example.org)}
+      CM_NTFY_DOMAIN: ${CM_NTFY_DOMAIN:-ntfy.localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config

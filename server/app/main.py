@@ -32,7 +32,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 log = logging.getLogger("cryomonitor")
 
-app = FastAPI(title="Standby Server", version="0.3.1")
+app = FastAPI(title="Standby Server", version="0.3.2")
 app.include_router(wearers_router)
 app.include_router(ui.router)
 

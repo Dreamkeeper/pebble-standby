@@ -24,7 +24,7 @@ class Escalator(private val context: Context, private val settings: SettingsStor
 
     private val http = OkHttpClient()
 
-    fun fire(detector: String, isTest: Boolean) {
+    fun fire(detector: String, isTest: Boolean, serverReachable: Boolean) {
         val loc = lastKnownLocation()
         val mapsLink = loc?.let { "https://maps.google.com/?q=${it.first},${it.second}" }
         val prefix = if (isTest) "[TEST] " else ""
@@ -33,14 +33,28 @@ class Escalator(private val context: Context, private val settings: SettingsStor
             (mapsLink ?: "Location pending.") +
             " Please respond / call them now."
         sendSmsToAll(text)
-        sendTelegramToAll(text)
+        // Spec (escalation-and-deadman): the server owns Telegram (ACK
+        // buttons, tiers, retries); phone-direct Telegram fires ONLY when
+        // the server is unreachable. It used to fire always: duplicates
+        // for any wearer with both a server and a phone bot token.
+        if (serverReachable) {
+            CmLog.i(TAG, "server reachable: it owns Telegram, phone-direct skipped")
+        } else {
+            settings.telegramDirectFired = true
+            sendTelegramToAll(text)
+        }
     }
 
     fun cancel(reason: String) {
         val text = "Standby: previous alert CANCELLED ($reason). " +
             "${settings.wearerName} is OK."
         sendSmsToAll(text)
-        sendTelegramToAll(text)
+        // Retract only on channels that actually fired (persisted: the
+        // process may have restarted between the alarm and the cancel).
+        if (settings.telegramDirectFired) {
+            settings.telegramDirectFired = false
+            sendTelegramToAll(text)
+        }
     }
 
     private fun sendSmsToAll(text: String) {

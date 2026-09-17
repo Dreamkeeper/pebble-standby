@@ -38,6 +38,18 @@ services:
       CM_UI_INSECURE_COOKIES: ${CM_UI_INSECURE_COOKIES:-}
       # Debug mode: set to DEBUG in .env for extensive logs
       CM_LOG_LEVEL: ${CM_LOG_LEVEL:-INFO}
+      # Reverse proxy in front (Caddy, DSM, nginx)? Name its address here
+      # so uvicorn trusts its X-Forwarded-For — otherwise every caller
+      # shares the proxy's address and ONE rate-limit bucket (login,
+      # enrollment), and the audit trail records the proxy. Only trust
+      # a proxy that is the sole way to reach port 8080.
+      FORWARDED_ALLOW_IPS: ${CM_FORWARDED_ALLOW_IPS:-127.0.0.1}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/api/v1/health', timeout=5).status == 200 else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     # If the proxy runs in another compose project, attach its network:
     #   networks: [default, proxynet]
     # and declare at top level:
