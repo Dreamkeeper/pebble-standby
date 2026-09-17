@@ -6,6 +6,8 @@ package org.cryomonitor.companion
  */
 object Protocol {
     const val WATCHAPP_UUID = "7f8e2c40-3a55-4d9b-9f21-6b1e0c2d4a90"
+    /** CM_DL_TAG (protocol.h): the worker heartbeat DataLogging session. */
+    const val DL_TAG = 0xC202L
 
     // MSG_TYPE values (AppMessage)
     const val PMSG_HEARTBEAT = 1

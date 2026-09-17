@@ -752,6 +752,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                     CmLog.i(TAG, "first worker record: Pebble app forwards DataLogging (patched)")
                 }
                 soak.inc(SoakStats.DL_RECORDS)
+                intent.getStringExtra("transport")?.let { s5Transport = it }
                 intent.getIntExtra("battery", -1)
                     .takeIf { it in 0..100 }?.let { noteWatchBattery(it) }
                 // Records carry the worker's own state: sync display truth
@@ -996,5 +997,6 @@ class MonitorService : Service(), PebbleTransport.Listener {
         @Volatile var s5RecordCount = 0
         @Volatile var s5MedianFlushS = -1L
         @Volatile var s5LastRecT = 0L
+        @Volatile var s5Transport = "-"
     }
 }

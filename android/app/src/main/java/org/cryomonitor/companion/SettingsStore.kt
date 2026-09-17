@@ -82,4 +82,10 @@ class SettingsStore(context: Context) {
     var dlEverSeen: Boolean
         get() = p.getBoolean("dl_ever_seen", false)
         set(v) = p.edit().putBoolean("dl_ever_seen", v).apply()
+
+    /** Epoch (s) of the newest worker record processed: replay protection
+     *  for PebbleKit2 data-log redelivery (see WorkerRecords.isNew). */
+    var dlLastEpoch: Long
+        get() = p.getLong("dl_last_epoch", 0L)
+        set(v) = p.edit().putLong("dl_last_epoch", v).apply()
 }

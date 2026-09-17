@@ -1,22 +1,24 @@
 import java.util.Properties
 
 plugins {
-    // AGP >= 8.9.1 + compileSdk 36: required by PebbleKit2's androidx deps.
-    // Kotlin >= 2.3: PebbleKit2 1.2.0 ships Kotlin 2.3 metadata.
-    id("com.android.application") version "8.9.2"
-    id("org.jetbrains.kotlin.android") version "2.3.20"
+    // PebbleKit2 >= 1.3.0 (data-log delivery) requires compileSdk 37, which
+    // needs AGP 9.x and therefore Gradle 9.x (same toolchain as the Pebble
+    // app: AGP 9.3.1 / Kotlin 2.4.10 / Gradle 9.6.1). Built-in Kotlin is
+    // opted out of in gradle.properties so this plugin block stays valid.
+    id("com.android.application") version "9.3.1"
+    id("org.jetbrains.kotlin.android") version "2.4.10"
 }
 
 android {
     namespace = "org.cryomonitor.companion"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "org.cryomonitor.companion"
         minSdk = 26
         targetSdk = 35
-        versionCode = 43
-        versionName = "0.6.4"
+        versionCode = 44
+        versionName = "0.6.5"
     }
 
     // Release signing: keystore + credentials live OUTSIDE version control
@@ -77,7 +79,7 @@ kotlin {
 dependencies {
     // PebbleKit2: primary watch transport (Core app >= 1.0.7.7).
     // The Classic intent transport in PebbleTransport.kt stays as fallback.
-    implementation("io.rebble.pebblekit2:client:1.2.0")
+    implementation("io.rebble.pebblekit2:client:1.3.1")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")

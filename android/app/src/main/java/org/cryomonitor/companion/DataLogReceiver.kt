@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Base64
 import java.io.Serializable
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.UUID
 
 /**
@@ -63,57 +61,10 @@ class DataLogReceiver : BroadcastReceiver() {
         }.onFailure { CmLog.w(TAG, "DL ack failed: $it") }
     }
 
-    /** cm_heartbeat_rec: v1 = 8 bytes (epoch u32 LE, stage, battery, bpm,
-     *  suspended); v2 = 14 bytes adding change_age u16, motion_age u16,
-     *  flags, heap64; v3 = 16 bytes adding episode u16 + detector in the
-     *  stage byte's high nibble. */
+    /** Parsing, replay protection and hand-off live in [WorkerRecords],
+     *  shared with the PebbleKit2 data-log path. */
     private fun parseHeartbeat(context: Context, bytes: ByteArray) {
-        if (bytes.size != 8 && bytes.size != 14 && bytes.size != 16) {
-            CmLog.w(TAG, "DL record has unexpected size ${bytes.size}")
-            return
-        }
-        // v3 (16 B) adds episode u16 and packs the stage detector into the
-        // stage byte's high nibble — the spooled channel doubles as an
-        // authoritative ALARM recovery path (delivery hardening D3).
-        val v3 = bytes.size == 16
-        val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-        val epochS = buf.int.toLong() and 0xFFFFFFFFL
-        val stage = if (v3) bytes[4].toInt() and 0x0F else bytes[4].toInt()
-        val detector = if (v3) (bytes[4].toInt() shr 4) and 0x0F else -1
-        val episode = if (v3) buf.getShort(14).toInt() and 0xFFFF else 0
-        val battery = bytes[5].toInt() and 0xFF
-        val bpm = bytes[6].toInt() and 0xFF
-        val suspended = bytes[7].toInt()
-        val heap = if (bytes.size >= 14) (bytes[13].toInt() and 0xFF) * 64 else 0
-        val diag = if (bytes.size >= 14) {
-            val changeAge = buf.getShort(8).toInt() and 0xFFFF
-            val motionAge = buf.getShort(10).toInt() and 0xFFFF
-            val flags = bytes[12].toInt() and 0xFF
-            " changeAge=${changeAge}s motionAge=${motionAge}s " +
-                "flags=0x%02x heap=${heap}B".format(flags) +
-                (if ((flags and 0x40) != 0) " GATED" else "") +
-                (if ((flags and 0x08) != 0) " NAGGED" else "") +
-                (if ((flags and 0x04) != 0) " HUNT" else "")
-        } else ""
-        val flushS = System.currentTimeMillis() / 1000 - epochS
-        CmLog.i(TAG, "WORKER HEARTBEAT via DataLogging: stage=$stage " +
-            "batt=$battery% bpm=$bpm susp=$suspended flush-latency=${flushS}s$diag")
-        // The monitor runs as a foreground service, so this both delivers
-        // to a live service and revives a dead one.
-        val flags = if (bytes.size >= 14) bytes[12].toInt() and 0xFF else -1
-        runCatching {
-            context.startForegroundService(
-                Intent(context, MonitorService::class.java)
-                    .setAction(MonitorService.ACTION_WORKER_HEARTBEAT)
-                    .putExtra("battery", battery)
-                    .putExtra("stage", stage)
-                    .putExtra("suspended", suspended)
-                    .putExtra("flags", flags)
-                    .putExtra("worker_heap", heap)
-                    .putExtra("detector", detector)
-                    .putExtra("episode", episode)
-                    .putExtra("flush_s", flushS))
-        }.onFailure { CmLog.w(TAG, "could not deliver worker heartbeat: $it") }
+        WorkerRecords.process(context, bytes, WorkerRecords.TRANSPORT_CLASSIC)
     }
 
     companion object {

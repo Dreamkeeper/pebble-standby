@@ -50,7 +50,7 @@ Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
 heartbeat gaps). Current builds: watchapp **0.5.7**, companion
-**0.6.4**, all in [`dist/`](dist/).
+**0.6.5**, all in [`dist/`](dist/).
 
 What the field testing taught, each with a fix and a test:
 
@@ -75,7 +75,10 @@ What the field testing taught, each with a fix and a test:
 - **Upstream PRs** — [coredevices/PebbleOS#1960](https://github.com/coredevices/PebbleOS/pull/1960)
   (off-wrist HR invalidation) and
   [coredevices/mobileapp#386](https://github.com/coredevices/mobileapp/pull/386)
-  (third-party DataLogging forwarding). Until merged, [`dist/`](dist/)
+  (third-party DataLogging forwarding — closed upstream in favour of
+  PebbleKit2 data-log delivery: library 1.3.0 plus
+  [coredevices/mobileapp#378](https://github.com/coredevices/mobileapp/pull/378),
+  which the companion now speaks). Until those land, [`dist/`](dist/)
   carries a patched dual-slot PebbleOS build exposing the raw HR-quality
   metric; on the stock Pebble app the companion runs in store-app mode.
 
@@ -94,7 +97,8 @@ cd watchapp && pebble build     # -> build/watchapp.pbw (emery/diorite/flint/gab
 Install: sideload the `.pbw` via the Pebble/Core mobile app or
 Rebble Sideload Helper.
 
-**Android companion** (JDK 17, Android SDK platform 36, Gradle 8.11+, AGP 8.9+):
+**Android companion** (JDK 17, Android SDK platform 37, Gradle 9.6+, AGP 9.3 —
+PebbleKit2 ≥ 1.3 requires compileSdk 37):
 
 ```bash
 cd android && gradle assembleSideloadRelease
@@ -112,7 +116,7 @@ docker compose up -d --build        # API on :8080, ntfy on :8090
 ```
 
 Tests: `watchapp/tests` (host C, gcc/MSVC — 216 checks), `server/tests`
-(pytest — 73 checks), and `android` JVM unit tests (`gradle test`, 22).
+(pytest — 73 checks), and `android` JVM unit tests (`gradle test`, 27).
 
 Internal identifiers (Android package `org.cryomonitor.companion`,
 server module and container names, the watchapp UUID) deliberately keep

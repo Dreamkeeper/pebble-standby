@@ -784,7 +784,7 @@ class DebugActivity : AppCompatActivity() {
                 m > 90 -> "→ DELIVERING (batched, ~${(m + 30) / 60} min)"
                 else -> ""
             }
-            "records=${MonitorService.s5RecordCount} · median flush=${m}s · " +
+            "records=${MonitorService.s5RecordCount} via ${MonitorService.s5Transport} · median flush=${m}s · " +
                 "last ${age}s ago $verdict"
         }
 
