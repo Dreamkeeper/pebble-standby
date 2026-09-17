@@ -20,7 +20,9 @@ mkdir -p /volume1/docker/cryomonitor
 ```bash
 cd /volume1/docker/cryomonitor
 cp .env.example .env
-vi .env        # set CM_API_TOKEN (openssl rand -hex 32), Telegram token, SMTP
+vi .env        # set CM_PUBLIC_URL, CM_TELEGRAM_BOT_TOKEN (see TELEGRAM-BOT.md),
+               # CM_UI_ADMIN_USER / CM_UI_ADMIN_PASSWORD for the first login, SMTP.
+               # CM_API_TOKEN is legacy: leave it empty, phones enroll with a code.
 ```
 
 ## 3. Create the project in Container Manager
@@ -135,10 +137,11 @@ The server hosts multiple wearers (family / response group).
 code (below), the wearer taps "Enroll with a code" in the Android app,
 and manages contacts, tiers, and self-notification from the app's
 "Contacts & safety net" screen. The curl examples below are
-**operator-only** (wearer creation, code issuance) or a fallback until
-the web dashboard lands — day-to-day contact upkeep should happen in
-the app, not over SSH. Contacts discover their Telegram chat id by
-messaging the deployment's bot, which replies with it.
+**operator-only** (wearer creation, code issuance) and are superseded by
+the web dashboard (below) — day-to-day contact upkeep happens in the
+app or the dashboard, not over SSH. Contacts discover their Telegram
+chat id by pressing Start on the deployment's bot, which replies with it
+([TELEGRAM-BOT.md](TELEGRAM-BOT.md)).
 
 Operator administration with `CM_ADMIN_TOKEN` from `.env`:
 
@@ -191,6 +194,14 @@ Create one responder account per response-group member.
 API admin calls with the env token return 403 with a pointed message.
 Admin API routes accept operator sessions instead; remove
 `CM_ADMIN_TOKEN` from `.env` after the dashboard bootstrap.
+
+**Behind DSM's reverse proxy** set `CM_FORWARDED_ALLOW_IPS` in `.env` to
+the docker bridge gateway the proxy connects from (visible in the
+container log, e.g. `172.23.0.1`). Without it every caller appears as
+the proxy: the per-address limits below become one shared bucket and
+the audit trail records the proxy. Port 8080 is published on the NAS,
+so LAN clients could spoof the forwarding header — bind it to the NAS
+(`127.0.0.1:8080:8080`) if that matters on your network.
 
 **Hardening**: login is rate-limited (5 attempts / 15 min per account
 and per address) and every failure is audited (Audit page). Passwords

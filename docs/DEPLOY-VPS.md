@@ -4,17 +4,20 @@ From a fresh Debian 12 / Ubuntu 24.04 machine to a working HTTPS
 dashboard in about fifteen minutes. Any small tier works (1 vCPU, 1 GB
 RAM, 10 GB disk — €3–6/month); the stack is FastAPI + SQLite + Caddy.
 
-You do **not** need a server to try Standby: the companion can alert a
-Telegram chat directly. The server adds what matters for real use —
-tiered contacts with one-tap acknowledgement and retries, a dead-man
-alarm when the *phone* goes silent, and a dashboard.
+In normal operation **every alert comes from the server**: tiered
+contacts, a one-tap *Acknowledge*, retries, a dead-man alarm when the
+*phone* goes silent, and a dashboard. Without a server the app can only
+send one plain Telegram message from the phone through a bot you create
+yourself ([TELEGRAM-BOT.md](TELEGRAM-BOT.md), step 4) — fine for a first
+look, not for relying on.
 
 ## 0. Before you start
 
 - A DNS name pointing at the VPS: an `A` (and `AAAA`) record such as
   `standby.example.org`. Certificates cannot be issued for a bare IP.
-- A Telegram bot token from [@BotFather](https://t.me/BotFather) if
-  contacts should be alerted over Telegram (recommended).
+- A Telegram bot token if contacts should be alerted over Telegram
+  (recommended) — creating the bot and collecting chat ids is covered
+  step by step in [TELEGRAM-BOT.md](TELEGRAM-BOT.md).
 
 ## 1. Install Docker
 
@@ -69,10 +72,11 @@ that the DNS record has propagated: `docker compose logs caddy`.
    24 h, single use).
 3. In the Standby Android app: *Enroll* → server URL + the code. The
    phone receives its own token; no secret is ever typed twice.
-4. Add contacts and tiers for the wearer. A Telegram contact sends
-   `/start` to your bot to learn their chat id.
-5. Run a **test alarm** from the app (it is labelled `[TEST]` end to
-   end) and have a contact press *Acknowledge*.
+4. Add contacts and tiers for the wearer. A Telegram contact presses
+   **Start** on your bot and it replies with their chat id
+   ([details](TELEGRAM-BOT.md)).
+5. In the app: *Contacts & safety net* → **Fire drill** (labelled
+   `[TEST]` end to end); have a contact press *Acknowledge*.
 
 ## 6. Harden the machine (one-time, ~30 min)
 

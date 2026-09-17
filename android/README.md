@@ -30,6 +30,17 @@ companion runs in **store-app mode**
 ([`PebbleAppPolicy`](app/src/main/java/org/cryomonitor/companion/PebbleAppPolicy.kt)):
 liveness comes from a brief hourly watchapp sync instead of records.
 
+## Escalation
+
+The **server** owns contact alerting (Telegram with Acknowledge buttons,
+tiers, retries). The app posts the alarm to it and, if the server does
+not accept it, falls back to a plain Telegram message sent from the
+phone with its own bot token (*Show manual configuration*); the
+cancellation follows on the same channel. Setting up the bots:
+[docs/TELEGRAM-BOT.md](../docs/TELEGRAM-BOT.md).
+
+## Routing
+
 The watchapp's `companionApp` declaration in `watchapp/package.json` is
 what routes both PebbleKit2 channels to this app — keep its package
 name in sync with `applicationId`.
