@@ -29,7 +29,7 @@ an Android companion app, and an optional self-hosted server.
 | [`watchapp/`](watchapp/) | Pebble app (C, SDK 4.x): background-worker monitoring (71 ms alarm-path launch, measured), on-watch alert ladder with acknowledged delivery + episode identity, monotonic detector clock (wall-jump immune), sustained-motion and own-vibration guards, suspension menu, carry mode, charging hold, HR-quality gate, not-worn and sensor-fault nags. Targets `emery`, `diorite`, `flint`, `gabbro`. |
 | [`android/`](android/) | Android companion (Kotlin): foreground service with Doze-proof exact-alarm heartbeat, watch watchdog + self-heal, full-screen alarm with cancel window, DataLogging spool recovery (alarms escalate even if the watch died out of range), store-app mode for the stock Pebble app, boot/update recovery, soak-test instrumentation with built-in drills, Telegram/server escalation, enrollment-by-code onboarding. SMS/call fallback is parked until a dedicated gateway flavor (Play Protect flags those permissions). |
 | [`server/`](server/) | Self-hosted backend (Python/FastAPI, Docker): phone dead-man monitoring with auto all-clear on recovery, tiered escalation with delivery ACK + retry via Telegram/ntfy/email, idempotent alarm intake, leased command queue, web dashboard. Deployed on a Synology NAS behind HTTPS. |
-| [`docs/`](docs/) | Product plan, soak-test protocol, deployment guides ([VPS](docs/DEPLOY-VPS.md), [Synology](docs/DEPLOY-SYNOLOGY.md)), [Telegram bot setup](docs/TELEGRAM-BOT.md), review/optimization records, upstream-PR docs, outreach drafts. |
+| [`docs/`](docs/) | Product plan, soak-test protocol, deployment guides ([VPS](docs/DEPLOY-VPS.md), [Synology](docs/DEPLOY-SYNOLOGY.md)), [Telegram bot setup](docs/TELEGRAM-BOT.md), review/optimization records, upstream-PR docs. |
 | [`openspec/`](openspec/) | Living specs ([OpenSpec](https://github.com/Fission-AI/openspec)): product requirements, detector ladder, watch↔phone protocol, escalation/dead-man, suspension, companion resilience. Changes flow through `/opsx:propose` → `/opsx:apply` → `/opsx:archive`. |
 | [`tools/`](tools/) | `worker_log_timeline.py`: rebuilds the watch worker's per-minute timeline from shared companion logs, for post-mortems without ADB. |
 | [`dist/`](dist/) | Current sideload artifacts: watchapp `.pbw`, companion `.apk`, and the dual-slot test firmware `.pbz` for Pebble Time 2. |
@@ -82,9 +82,8 @@ What the field testing taught, each with a fix and a test:
   carries a patched dual-slot PebbleOS build exposing the raw HR-quality
   metric; on the stock Pebble app the companion runs in store-app mode.
 
-See [docs/SOAK-TEST.md](docs/SOAK-TEST.md) for the soak protocol,
-[docs/PLAN.md](docs/PLAN.md) for the roadmap, and
-[docs/OUTREACH-DRAFTS.md](docs/OUTREACH-DRAFTS.md) for the beta plan.
+See [docs/SOAK-TEST.md](docs/SOAK-TEST.md) for the soak protocol and
+[docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Building
 
