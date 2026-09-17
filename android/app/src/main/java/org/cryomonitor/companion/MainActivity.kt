@@ -165,6 +165,28 @@ class MainActivity : AppCompatActivity() {
         val fTg = advField("12345:ABC…", settings.telegramBotToken)
         advLabel("Telegram chat ids (phone-direct fallback)")
         val fTgIds = advField("1122334455", settings.telegramChatIds.joinToString(","))
+        advanced.addView(Button(this).apply {
+            text = "Test fallback bot (sends a [TEST] message now)"
+            setOnClickListener {
+                // Test what is typed, not what was last saved.
+                settings.telegramBotToken = fTg.text.toString().trim()
+                settings.telegramChatIds = fTgIds.text.toString().split(',')
+                    .map { it.trim() }.filter { it.isNotEmpty() }
+                isEnabled = false
+                Thread {
+                    val lines = Escalator(this@MainActivity, settings).testTelegramDirect()
+                    runOnUiThread {
+                        isEnabled = true
+                        androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Fallback bot test")
+                            .setMessage(lines.joinToString("\n\n") +
+                                "\n\nThis channel is used only when an alarm fires and " +
+                                "the server cannot be reached.")
+                            .setPositiveButton("OK", null).show()
+                    }
+                }.start()
+            }
+        })
         advLabel("Emergency number for one-tap dial")
         val fEmg = advField("112 / 911", settings.emergencyNumber)
         advLabel("Wearer name (used in alert texts)")

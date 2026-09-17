@@ -114,6 +114,12 @@ your bot, then open
 `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser and look
 for `"chat":{"id":…}`.
 
+**Test it:** *Show manual configuration* → **Test fallback bot**. It
+sends a `[TEST]` message through the fallback bot right away and shows
+Telegram's answer per chat id — *delivered*, *has not pressed Start*,
+*token rejected* — so a typo is found now, not during an emergency. (The
+fire drill does not exercise this bot: it goes to the server.)
+
 The fallback sends only when an alarm fires and the server did not
 accept it; if it fired, the cancellation is sent there too. It has no
 Acknowledge button and no retries — it is a last resort, not a

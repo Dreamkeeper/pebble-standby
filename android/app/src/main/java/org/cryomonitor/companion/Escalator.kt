@@ -57,6 +57,41 @@ class Escalator(private val context: Context, private val settings: SettingsStor
         }
     }
 
+    /**
+     * Send a [TEST] message through the phone-direct fallback bot and report
+     * Telegram's answer per chat id. The fallback only fires when the server
+     * is unreachable, so without this the first real use would also be the
+     * first test. Blocking: call off the main thread.
+     */
+    fun testTelegramDirect(): List<String> {
+        val token = settings.telegramBotToken
+        if (token.isEmpty()) return listOf("No fallback bot token is set.")
+        if (settings.telegramChatIds.isEmpty()) return listOf("No fallback chat ids are set.")
+        val text = "[TEST] Standby fallback channel: this is how an alert looks " +
+            "when the server cannot be reached. Wearer: ${settings.wearerName}."
+        return settings.telegramChatIds.map { chatId ->
+            runCatching {
+                val body = JSONObject().put("chat_id", chatId).put("text", text)
+                http.newCall(Request.Builder()
+                    .url("https://api.telegram.org/bot$token/sendMessage")
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()).execute().use { resp ->
+                        val why = runCatching {
+                            JSONObject(resp.body?.string() ?: "{}").optString("description")
+                        }.getOrDefault("")
+                        CmLog.i(TAG, "fallback test to $chatId -> ${resp.code} $why")
+                        when (resp.code) {
+                            200 -> "$chatId: delivered"
+                            401, 404 -> "$chatId: bot token rejected (${resp.code}) — check the token"
+                            403 -> "$chatId: blocked — this person has not pressed Start on the fallback bot"
+                            400 -> "$chatId: $why — check the chat id"
+                            else -> "$chatId: HTTP ${resp.code} $why"
+                        }
+                    }
+            }.getOrElse { "$chatId: network error — ${it.javaClass.simpleName}" }
+        }
+    }
+
     private fun sendSmsToAll(text: String) {
         val sms = runCatching { context.getSystemService(SmsManager::class.java) }
             .getOrNull() ?: return

@@ -50,7 +50,7 @@ Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
 heartbeat gaps). Current builds: watchapp **0.5.7**, companion
-**0.6.6**, all in [`dist/`](dist/).
+**0.6.7**, all in [`dist/`](dist/).
 
 What the field testing taught, each with a fix and a test:
 
