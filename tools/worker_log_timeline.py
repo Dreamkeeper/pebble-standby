@@ -14,14 +14,16 @@ Usage:
     python tools/worker_log_timeline.py --around "09-09 02:05" cm-20260909.log
     python tools/worker_log_timeline.py --window 30 --all cm-*.log
 
-Get the log files with Debug -> View logs -> Share (the export contains
-the daily files), or via ADB:
+Get the logs with Debug -> View logs -> Share or Send to my server (a
+diagnostics .zip, which this tool reads directly), or via ADB:
     adb pull /sdcard/Android/data/org.cryomonitor.companion/files/logs/
 """
 import argparse
 import datetime as dt
+import io
 import re
 import sys
+import zipfile
 
 REC = re.compile(
     r"^(\d\d-\d\d \d\d:\d\d:\d\d)\.\d+ I/DataLog: WORKER HEARTBEAT via DataLogging: "
@@ -39,24 +41,37 @@ def flags_text(f):
     return " ".join(n for b, n in FLAG_BITS if f & b and n != "everpulse") or "-"
 
 
+def _lines(path):
+    """Lines of a plain log file, or of every logs/cm-*.log inside a
+    diagnostics bundle (.zip), oldest file first."""
+    if path.lower().endswith(".zip"):
+        with zipfile.ZipFile(path) as z:
+            for name in sorted(n for n in z.namelist()
+                               if n.startswith("logs/cm-") and n.endswith(".log")):
+                with z.open(name) as raw:
+                    yield from io.TextIOWrapper(raw, encoding="utf-8", errors="replace")
+    else:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            yield from fh
+
+
 def parse(paths, year):
     recs, events = [], []
     for path in paths:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                m = REC.match(line)
-                if m:
-                    logged = dt.datetime.strptime(f"{year}-{m.group(1)}", "%Y-%m-%d %H:%M:%S")
-                    t = logged - dt.timedelta(seconds=int(m.group(6)))
-                    recs.append(dict(t=t, stage=int(m.group(2)), batt=int(m.group(3)),
-                                     bpm=int(m.group(4)), susp=int(m.group(5)),
-                                     change=int(m.group(7)), motion=int(m.group(8)),
-                                     flags=int(m.group(9), 16), heap=int(m.group(10))))
-                    continue
-                e = EVENT.match(line)
-                if e:
-                    events.append((dt.datetime.strptime(f"{year}-{e.group(1)}", "%Y-%m-%d %H:%M:%S"),
-                                   e.group(3).strip()))
+        for line in _lines(path):
+            m = REC.match(line)
+            if m:
+                logged = dt.datetime.strptime(f"{year}-{m.group(1)}", "%Y-%m-%d %H:%M:%S")
+                t = logged - dt.timedelta(seconds=int(m.group(6)))
+                recs.append(dict(t=t, stage=int(m.group(2)), batt=int(m.group(3)),
+                                 bpm=int(m.group(4)), susp=int(m.group(5)),
+                                 change=int(m.group(7)), motion=int(m.group(8)),
+                                 flags=int(m.group(9), 16), heap=int(m.group(10))))
+                continue
+            e = EVENT.match(line)
+            if e:
+                events.append((dt.datetime.strptime(f"{year}-{e.group(1)}", "%Y-%m-%d %H:%M:%S"),
+                               e.group(3).strip()))
     recs.sort(key=lambda r: r["t"])
     events.sort()
     return recs, events

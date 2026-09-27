@@ -19,7 +19,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from . import operators, telegram_poll, ui
+from . import diagnostics, operators, telegram_poll, ui
 from .channels import build_channels, render_message
 from .deadman import DeadmanConfig, DeadmanMonitor, PhoneState
 from .escalation import AlertKind, Contact, Escalation, Tier
@@ -32,8 +32,9 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 log = logging.getLogger("cryomonitor")
 
-app = FastAPI(title="Standby Server", version="0.3.2")
+app = FastAPI(title="Standby Server", version="0.3.3")
 app.include_router(wearers_router)
+app.include_router(diagnostics.router)
 app.include_router(ui.router)
 
 PUBLIC_URL = os.environ.get("CM_PUBLIC_URL", "").rstrip("/")
@@ -487,6 +488,10 @@ async def _pump_loop():
             await pump_cycle()
         except Exception:
             log.exception("pump cycle failed")
+        try:
+            await asyncio.to_thread(diagnostics.purge_if_due, time.time())
+        except Exception:
+            log.exception("diagnostics purge failed")
         await asyncio.sleep(5)
 
 
@@ -502,6 +507,9 @@ async def _startup():
         log.info("restored active escalation %s for %s", esc_id, wid)
     for w in db.list_wearers():
         get_monitor(w["id"])
+    n = diagnostics.purge_expired()
+    if n:
+        log.info("purged %d expired diagnostics bundle(s)", n)
     if os.environ.get("CM_DISABLE_PUMP") != "1":
         asyncio.create_task(_pump_loop())
         bot = os.environ.get("CM_TELEGRAM_BOT_TOKEN", "")

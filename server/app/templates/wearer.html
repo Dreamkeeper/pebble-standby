@@ -83,6 +83,41 @@ nobody. Add a contact with a working channel.</p>{% endif %}
   {% endif %}
   {% if notice %}<p class="muted">{{ notice }}</p>{% endif %}
 </div>
+
+<div class="card">
+  <h4>Diagnostics</h4>
+  <p class="muted">Log bundles the wearer chose to send from the phone
+  (already redacted there). Kept {{ diag_retention_days }} days. The server
+  can only ask; the phone sends nothing until the wearer taps Send.</p>
+  <form class="inline" method="post" action="/ui/wearers/{{ wearer.id }}/diagnostics/request">
+    <input type="hidden" name="csrf" value="{{ op.csrf }}">
+    <select name="days">
+      {% for d in diag_ranges %}<option value="{{ d }}"{% if d == 7 %} selected{% endif %}>{% if d == 1 %}today{% else %}last {{ d }} days{% endif %}</option>{% endfor %}
+    </select>
+    <button>Request diagnostics</button>
+  </form>
+  {% if diagnostics %}
+  <table>
+    <tr><th>Received</th><th>Range</th><th>Size</th><th>Request</th><th></th><th></th></tr>
+    {% for d in diagnostics %}
+    <tr>
+      <td>{{ d.when }}</td><td>{{ d.days }} day(s)</td><td>{{ d.kb }} KB</td>
+      <td class="muted">{{ d.request_id or "sent unprompted" }}</td>
+      <td><a href="/ui/wearers/{{ wearer.id }}/diagnostics/{{ d.id }}">Download</a></td>
+      <td><form class="inline" method="post"
+                action="/ui/wearers/{{ wearer.id }}/diagnostics/{{ d.id }}/delete">
+          <input type="hidden" name="csrf" value="{{ op.csrf }}">
+          <button>Delete</button></form></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">No bundles received.</p>{% endif %}
+  {% if diag_requests %}
+  <p class="muted">Recent requests:
+    {% for r in diag_requests %}{{ r.when }} by {{ r.by }}, {{ r.days }} day(s):
+      <b>{{ r.state }}</b>{% if not loop.last %}; {% endif %}{% endfor %}</p>
+  {% endif %}
+</div>
 {% endif %}
 
 <h3>Recent events</h3>

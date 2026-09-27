@@ -51,6 +51,8 @@ def _build_appenv(tmp_path, monkeypatch, ui_bootstrap: bool):
     wearers = importlib.reload(wearers_mod)
     from app import operators as operators_mod
     operators = importlib.reload(operators_mod)
+    from app import diagnostics as diagnostics_mod
+    importlib.reload(diagnostics_mod)
     from app import ui as ui_mod
     importlib.reload(ui_mod)
     from app import main as main_mod

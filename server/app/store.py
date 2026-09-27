@@ -19,7 +19,7 @@ import sqlite3
 import time
 import uuid
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS heartbeat_trail (
 CREATE INDEX IF NOT EXISTS idx_hb_trail ON heartbeat_trail (wearer_id, t);
 """
 
+_SCHEMA_V4 = """
+CREATE TABLE IF NOT EXISTS diagnostics (
+  id TEXT PRIMARY KEY, wearer_id TEXT NOT NULL,
+  created_t REAL NOT NULL, size INTEGER NOT NULL, days INTEGER NOT NULL,
+  request_id TEXT);
+CREATE INDEX IF NOT EXISTS idx_diag_wearer ON diagnostics (wearer_id, created_t);
+CREATE TABLE IF NOT EXISTS diag_requests (
+  id TEXT PRIMARY KEY, wearer_id TEXT NOT NULL, days INTEGER NOT NULL,
+  requested_by TEXT NOT NULL, created_t REAL NOT NULL,
+  state TEXT NOT NULL DEFAULT 'pending', resolved_t REAL, diagnostics_id TEXT);
+CREATE INDEX IF NOT EXISTS idx_diag_req_wearer ON diag_requests (wearer_id, created_t);
+"""
+
 DEFAULT_TIER = {"name": "primary", "position": 0,
                 "repeat_after_s": 1800, "promote_after_s": 600}
 
@@ -96,6 +109,7 @@ class Store:
                 c.executescript(_SCHEMA_V2)
                 c.execute("ALTER TABLE deadman ADD COLUMN suspended_until REAL")
                 c.execute("ALTER TABLE heartbeat_trail ADD COLUMN watch_battery INTEGER")
+                c.executescript(_SCHEMA_V4)
                 c.execute("INSERT INTO schema_version VALUES (?)", (SCHEMA_VERSION,))
             else:
                 if row["version"] < 2:
@@ -103,6 +117,8 @@ class Store:
                     c.execute("ALTER TABLE deadman ADD COLUMN suspended_until REAL")
                 if row["version"] < 3:  # M0 spike S6: watch battery drain trail
                     c.execute("ALTER TABLE heartbeat_trail ADD COLUMN watch_battery INTEGER")
+                if row["version"] < 4:  # consented-diagnostics
+                    c.executescript(_SCHEMA_V4)
                 if row["version"] < SCHEMA_VERSION:
                     c.execute("UPDATE schema_version SET version=?", (SCHEMA_VERSION,))
 
@@ -473,6 +489,72 @@ class Store:
             r = c.execute("SELECT suspended_until FROM deadman WHERE wearer_id=?",
                           (wearer_id,)).fetchone()
             return r["suspended_until"] if r else None
+
+    # -- diagnostics bundles (consented-diagnostics; files live on disk) --
+
+    def add_diagnostics(self, wearer_id: str, diag_id: str, size: int,
+                        days: int, request_id: str | None) -> None:
+        with self._conn() as c:
+            c.execute("INSERT INTO diagnostics (id, wearer_id, created_t, size, "
+                      "days, request_id) VALUES (?,?,?,?,?,?)",
+                      (diag_id, wearer_id, time.time(), size, days, request_id))
+
+    def list_diagnostics(self, wearer_id: str) -> list[dict]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT * FROM diagnostics WHERE wearer_id=? "
+                "ORDER BY created_t DESC", (wearer_id,)).fetchall()]
+
+    def get_diagnostics(self, wearer_id: str, diag_id: str) -> dict | None:
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM diagnostics WHERE wearer_id=? AND id=?",
+                          (wearer_id, diag_id)).fetchone()
+            return dict(r) if r else None
+
+    def delete_diagnostics(self, wearer_id: str, diag_id: str) -> bool:
+        with self._conn() as c:
+            return c.execute("DELETE FROM diagnostics WHERE wearer_id=? AND id=?",
+                             (wearer_id, diag_id)).rowcount > 0
+
+    def diagnostics_older_than(self, before_t: float) -> list[dict]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT id, wearer_id FROM diagnostics WHERE created_t < ?",
+                (before_t,)).fetchall()]
+
+    def create_diag_request(self, wearer_id: str, req_id: str, days: int,
+                            requested_by: str) -> None:
+        """A newer request supersedes any still-pending one: the phone
+        keeps only the latest (design D4)."""
+        now = time.time()
+        with self._conn() as c:
+            c.execute("UPDATE diag_requests SET state='superseded', resolved_t=? "
+                      "WHERE wearer_id=? AND state='pending'", (now, wearer_id))
+            c.execute("INSERT INTO diag_requests (id, wearer_id, days, requested_by, "
+                      "created_t) VALUES (?,?,?,?,?)",
+                      (req_id, wearer_id, days, requested_by, now))
+
+    def list_diag_requests(self, wearer_id: str, limit: int = 5) -> list[dict]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT * FROM diag_requests WHERE wearer_id=? "
+                "ORDER BY created_t DESC LIMIT ?", (wearer_id, limit)).fetchall()]
+
+    def get_diag_request(self, wearer_id: str, req_id: str) -> dict | None:
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM diag_requests WHERE wearer_id=? AND id=?",
+                          (wearer_id, req_id)).fetchone()
+            return dict(r) if r else None
+
+    def resolve_diag_request(self, wearer_id: str, req_id: str, state: str,
+                             diagnostics_id: str | None = None) -> bool:
+        """pending -> fulfilled | declined. A fulfilled request stays
+        fulfilled; an upload may still answer a superseded one."""
+        with self._conn() as c:
+            return c.execute(
+                "UPDATE diag_requests SET state=?, resolved_t=?, diagnostics_id=? "
+                "WHERE wearer_id=? AND id=? AND state IN ('pending','superseded')",
+                (state, time.time(), diagnostics_id, wearer_id, req_id)).rowcount > 0
 
     # -- kv --
 

@@ -50,7 +50,7 @@ Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
 heartbeat gaps). Current builds: watchapp **0.5.7**, companion
-**0.6.7**, all in [`dist/`](dist/).
+**0.6.8**, all in [`dist/`](dist/).
 
 What the field testing taught, each with a fix and a test:
 
@@ -68,7 +68,8 @@ What the field testing taught, each with a fix and a test:
   heartbeats, provisioning watchdog with self-heal, worker heap
   telemetry within the 10.5 KB worker budget, soak counters and drills
   in the app, store-app mode when the stock Pebble app forwards no
-  worker telemetry.
+  worker telemetry, and diagnostics the wearer chooses to share
+  (redacted on the phone; the server can ask, never pull).
 - **Server hardening** — dead-man race fixes, idempotent alarm intake,
   leased commands, auto-resolve + all-clear when a silent phone
   recovers, per-wearer event isolation.
@@ -116,7 +117,7 @@ docker compose up -d --build        # API on :8080, ntfy on :8090
 ```
 
 Tests: `watchapp/tests` (host C, gcc/MSVC — 216 checks), `server/tests`
-(pytest — 76 checks), and `android` JVM unit tests (`gradle test`, 27).
+(pytest — 87 checks), and `android` JVM unit tests (`gradle test`, 36).
 
 Internal identifiers (Android package `org.cryomonitor.companion`,
 server module and container names, the watchapp UUID) deliberately keep

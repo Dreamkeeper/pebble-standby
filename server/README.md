@@ -21,6 +21,12 @@ What it does:
 - **Web dashboard** at `/ui/` — fleet and wearer status, contacts,
   enrollment codes, operators (`admin` / `responder`), audit trail.
 - State (open alarms, dead-man, leased commands) survives restarts.
+- **Diagnostics the phone chooses to send.** An admin can *request* a
+  log bundle from a wearer's dashboard page; the phone only shows a
+  notification, and uploads when the wearer taps Send (already
+  redacted on the phone). Bundles are kept `CM_DIAG_RETENTION_DAYS`
+  (30) under `data/diagnostics/`, and only admins can download or
+  delete them. The server has no way to pull logs.
 
 ## Run it
 
@@ -48,6 +54,7 @@ shares one login/enrollment rate-limit bucket.
 | `app/escalation.py`, `app/deadman.py` | pure state machines (unit-tested without I/O) |
 | `app/channels.py`, `app/telegram_poll.py` | Telegram / ntfy / e-mail delivery; Telegram acknowledgement long-poll |
 | `app/wearers.py`, `app/operators.py`, `app/ui.py` | enrollment and contacts API, dashboard accounts and sessions, dashboard pages |
+| `app/diagnostics.py` | diagnostics upload/decline API, bundle storage and retention |
 | `app/store.py` | SQLite persistence (`data/cryomonitor.db`) |
 | `scripts/backup.sh` | consistent online backup, 14 rotations |
 | `docker-compose.yml`, `docker-compose.vps.yml`, `Caddyfile` | deployment |
@@ -56,7 +63,7 @@ shares one login/enrollment rate-limit bucket.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
-.venv/bin/python -m pytest tests/ -q          # 76 checks
+.venv/bin/python -m pytest tests/ -q          # 87 checks
 ```
 
 Internal names (`cryomonitor` database, logger and container names)

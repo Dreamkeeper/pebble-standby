@@ -9,6 +9,7 @@ Imports of runtime state (escalations, monitors) happen lazily via
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from . import diagnostics as diag
 from . import operators as ops
 from .deadman import PhoneState
 from .escalation import AlertKind
@@ -197,6 +199,14 @@ def _render_wearer(request: Request, op: ops.Operator, wid: str,
                                    if k not in ("t", "kind", "wearer_id"))}
               for e in reversed(db.recent_events(wid, limit=30))]
     from .wearers import wearer_degraded
+    diagnostics = [{"id": d["id"], "when": _fmt(d["created_t"]),
+                    "kb": (d["size"] + 1023) // 1024, "days": d["days"],
+                    "request_id": d["request_id"]}
+                   for d in db.list_diagnostics(wid)]
+    diag_requests = [{"id": r["id"], "when": _fmt(r["created_t"]),
+                      "days": r["days"], "by": r["requested_by"],
+                      "state": r["state"], "diagnostics_id": r["diagnostics_id"]}
+                     for r in db.list_diag_requests(wid)]
     return templates.TemplateResponse(request, "wearer.html", {
         "op": op, "wearer": w, "states": states,
         "last_hb": _fmt(m.last_heartbeat_t),
@@ -206,6 +216,9 @@ def _render_wearer(request: Request, op: ops.Operator, wid: str,
         "degraded": wearer_degraded(wid), "events": events,
         "enroll_code": enroll_code, "notice": notice,
         "refresh_s": UI_REFRESH_S,
+        "diagnostics": diagnostics, "diag_requests": diag_requests,
+        "diag_ranges": diag.REQUEST_RANGES,
+        "diag_retention_days": diag.RETENTION_DAYS,
         "contact_error": contact_error}, status_code=status_code)
 
 
@@ -372,6 +385,59 @@ async def ui_latency_drill(request: Request, wid: str):
                           notice="Latency drill queued — the phone picks it "
                                  "up on its next heartbeat (≤5 min); the "
                                  "result appears in Recent events.")
+
+
+# ---- diagnostics (admin only; spec: diagnostics-sharing) ----
+
+@router.post("/wearers/{wid}/diagnostics/request")
+async def ui_request_diagnostics(request: Request, wid: str):
+    """Ask, never pull: the phone shows a notification and uploads only
+    if the wearer taps Send."""
+    op = ops.require_ui_admin(request)
+    await ops.verify_csrf(request, op)
+    if not db.get_wearer(wid):
+        raise HTTPException(404, "unknown wearer")
+    form = await request.form()
+    try:
+        days = diag.normalize_days(int(str(form.get("days", "7"))))
+    except ValueError:
+        raise HTTPException(422, "bad day count")
+    req_id = secrets.token_hex(6)
+    db.create_diag_request(wid, req_id, days, op.username)
+    db.queue_command(wid, f"diag_request:{req_id}:{days}")
+    db.add_event(wid, "diagnostics_requested", {"request_id": req_id,
+                                                "days": days,
+                                                "operator": op.username})
+    return _render_wearer(request, op, wid,
+                          notice=f"Asked the phone for {days} day(s) of logs. "
+                                 "It shows a notification on its next heartbeat "
+                                 "(within 5 min); nothing is sent until the "
+                                 "wearer taps Send. A queued latency drill the "
+                                 "phone has not picked up yet is replaced.")
+
+
+@router.get("/wearers/{wid}/diagnostics/{did}")
+def ui_download_diagnostics(request: Request, wid: str, did: str):
+    op = ops.require_ui_admin(request)
+    if not db.get_diagnostics(wid, did):
+        raise HTTPException(404, "unknown diagnostics bundle")
+    path = diag.bundle_path(wid, did)
+    if not os.path.exists(path):
+        raise HTTPException(404, "bundle file missing")
+    db.add_event(wid, "diagnostics_downloaded", {"id": did,
+                                                 "operator": op.username})
+    return FileResponse(path, media_type="application/zip",
+                        filename=f"standby-diagnostics-{wid}-{did}.zip")
+
+
+@router.post("/wearers/{wid}/diagnostics/{did}/delete")
+async def ui_delete_diagnostics(request: Request, wid: str, did: str):
+    op = ops.require_ui_admin(request)
+    await ops.verify_csrf(request, op)
+    if diag.delete_bundle(wid, did):
+        db.add_event(wid, "diagnostics_deleted", {"id": did,
+                                                  "operator": op.username})
+    return RedirectResponse(f"/ui/wearers/{wid}", status_code=303)
 
 
 @router.post("/wearers/{wid}/disable")

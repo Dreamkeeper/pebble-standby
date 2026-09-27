@@ -465,46 +465,7 @@ class DebugActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderSoak(): String {
-        val resetAt = soak.get(SoakStats.RESET_AT)
-        val days = if (resetAt == 0L) 0.0
-                   else (System.currentTimeMillis() - resetAt) / 86_400_000.0
-        return buildString {
-            val ver = runCatching {
-                packageManager.getPackageInfo(packageName, 0).versionName
-            }.getOrNull() ?: "?"
-            append("# standby soak ${Date()} (${Build.MODEL}, companion v$ver)\n")
-            append("window: ${"%.1f".format(days)} days since " +
-                "${if (resetAt == 0L) "-" else Date(resetAt).toString()}\n")
-            append("service starts: boot=${soak.get(SoakStats.STARTS_BOOT)} " +
-                "update=${soak.get(SoakStats.STARTS_UPDATE)} " +
-                "other=${soak.get(SoakStats.STARTS_OTHER)}\n")
-            append("watch link: disconnects=${soak.get(SoakStats.DISCONNECTS)} " +
-                "downtime=${soak.get(SoakStats.DOWNTIME_S) / 60}m " +
-                "link-faults=${soak.get(SoakStats.LINK_FAULTS)} " +
-                "self-heals=${soak.get(SoakStats.SELF_HEALS)}\n")
-            val storeTag = if (PebbleAppPolicy.storeMode(
-                    PebbleAppPolicy.parse(settings.pebbleAppMode), settings.dlEverSeen))
-                " (store-app mode)" else ""
-            append("worker: dl-records=${soak.get(SoakStats.DL_RECORDS)}$storeTag " +
-                "faults=${soak.get(SoakStats.WORKER_FAULTS)} " +
-                "sensor-faults=${soak.get(SoakStats.SENSOR_FAULTS)} " +
-                "notworn-nags=${soak.get(SoakStats.NOTWORN_NAGS)}\n")
-            if (soak.get(SoakStats.WORKER_HEAP_LAST) > 0)
-                append("worker heap: last=${soak.get(SoakStats.WORKER_HEAP_LAST)}B " +
-                    "min=${soak.get(SoakStats.WORKER_HEAP_MIN)}B " +
-                    "(gate: warn <512B)\n")
-            append("alarms: pre=${soak.get(SoakStats.PREALARMS)} " +
-                "full=${soak.get(SoakStats.ALARMS)} " +
-                "server-fails=${soak.get(SoakStats.SERVER_FAILS)}\n")
-            if (soak.get(SoakStats.OUTAGE_AT) > 0)
-                append("outage drill: detect=${soak.get(SoakStats.OUTAGE_DETECT_S)}s " +
-                    "reconnect=${soak.get(SoakStats.OUTAGE_RECONNECT_S)}s\n")
-            if (soak.get(SoakStats.BOOT_RECOVERY_AT) > 0)
-                append("last boot recovery: " +
-                    "${soak.get(SoakStats.BOOT_RECOVERY_DELAY_S)}s after boot\n")
-        }
-    }
+    private fun renderSoak(): String = soak.render(this, settings)
 
     override fun onResume() {
         super.onResume()

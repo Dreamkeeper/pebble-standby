@@ -39,6 +39,18 @@ phone with its own bot token (*Show manual configuration*); the
 cancellation follows on the same channel. Setting up the bots:
 [docs/TELEGRAM-BOT.md](../docs/TELEGRAM-BOT.md).
 
+## Diagnostics
+
+*Debug → View logs* offers two exits for the same bundle: **Share…**
+(any app, via the Android chooser) and **Send to my server…**. Either
+asks for a range (today, 3, 7 or 14 days), then zips the daily log
+files, the soak report and a manifest. Before anything leaves the phone
+it removes the stored tokens and anything token-shaped, rounds
+coordinates to about 1 km and masks Telegram chat ids; the Send dialog
+lists these rules with the size and destination. The server can only
+*ask*: a request arrives as a notification and waits on the log screen
+until the wearer sends or declines it.
+
 ## Routing
 
 The watchapp's `companionApp` declaration in `watchapp/package.json` is
@@ -54,7 +66,8 @@ name in sync with `applicationId`.
 | `WorkerRecords`, `DataLogReceiver` | worker heartbeat records (PebbleKit2 + classic) |
 | `AlarmActivity`, `Escalator`, `ServerClient` | alarm UI, contact escalation, self-hosted backend |
 | `BootReceiver`, `SoakStats`, `PebbleAppPolicy` | reboot/update recovery, soak instrumentation, store-app mode |
-| `DebugActivity`, `LogActivity` | soak card, drills, sensor lab, log viewer/share |
+| `DebugActivity`, `LogActivity` | soak card, drills, sensor lab; log viewer, Share, Send to my server |
+| `DiagnosticsBundle` | the redacted log bundle behind Share and Send (range, manifest, soak report) |
 | `EnrollActivity`, `ContactsActivity`, `MainActivity` | enrollment by code, contacts, settings |
 
 Architecture lineage: a Kotlin port of OpenSeizureDetector's
@@ -75,7 +88,7 @@ gradle test assembleSideloadRelease
 
 Release signing reads `keystore.properties` and `keystore/*.jks`, both
 git-ignored; without them the release build is unsigned. Unit tests
-(JVM, 27) cover the server client, reboot-drill verdicts, store-app
+(JVM, 36) cover the server client, reboot-drill verdicts, store-app
 policy and worker-record parsing/replay protection; under AGP 9 `test`
 runs the debug variants.
 

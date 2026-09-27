@@ -139,4 +139,39 @@ class ServerClientTest {
         assertEquals(false, s!!.degraded)
         assertEquals(2, s.activeEscalations)
     }
+
+    // ---- diagnostics ----
+
+    @Test
+    fun `diagnostics upload posts the zip with days and request id, token in header`() {
+        server.enqueue(MockResponse().setBody("""{"id":"d-1"}"""))
+        val f = java.io.File.createTempFile("bundle", ".zip").apply {
+            writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04, 1, 2, 3)); deleteOnExit() }
+        val r = client.uploadDiagnostics(f, 7, "req-9")
+        assertTrue(r is ServerClient.UploadResult.Ok)
+        assertEquals("d-1", (r as ServerClient.UploadResult.Ok).id)
+        val rec = server.takeRequest()
+        assertEquals("/api/v1/diagnostics?days=7&request_id=req-9", rec.path)
+        assertEquals("Bearer unit-test-token", rec.getHeader("Authorization"))
+        assertEquals("application/zip", rec.getHeader("Content-Type"))
+        assertEquals(7L, rec.bodySize)
+    }
+
+    @Test
+    fun `diagnostics upload reports size and auth refusals distinctly`() {
+        val f = java.io.File.createTempFile("bundle", ".zip").apply { writeText("x"); deleteOnExit() }
+        server.enqueue(MockResponse().setResponseCode(413))
+        val big = client.uploadDiagnostics(f, 7, null)
+        assertTrue((big as ServerClient.UploadResult.Failed).why.contains("413"))
+        server.enqueue(MockResponse().setResponseCode(401))
+        val auth = client.uploadDiagnostics(f, 7, null)
+        assertTrue((auth as ServerClient.UploadResult.Failed).why.contains("401"))
+    }
+
+    @Test
+    fun `declining a request posts to its decline endpoint`() {
+        server.enqueue(MockResponse().setBody("{}"))
+        assertTrue(client.declineDiagnostics("req-9"))
+        assertEquals("/api/v1/diagnostics/requests/req-9/decline", server.takeRequest().path)
+    }
 }

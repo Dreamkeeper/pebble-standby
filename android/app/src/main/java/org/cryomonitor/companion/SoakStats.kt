@@ -1,7 +1,9 @@
 package org.cryomonitor.companion
 
 import android.content.Context
+import android.os.Build
 import android.os.SystemClock
+import java.util.Date
 
 /**
  * Persistent soak counters + recovery-drill markers (spec:
@@ -16,6 +18,49 @@ class SoakStats(context: Context) {
     fun add(key: String, delta: Long) = p.edit().putLong(key, get(key) + delta).apply()
     fun set(key: String, v: Long) = p.edit().putLong(key, v).apply()
     fun get(key: String): Long = p.getLong(key, 0)
+
+    /** The soak report shown on the debug screen, shared by text and
+     *  included in every diagnostics bundle (consented-diagnostics). */
+    fun render(context: Context, settings: SettingsStore): String {
+        val resetAt = get(SoakStats.RESET_AT)
+        val days = if (resetAt == 0L) 0.0
+                   else (System.currentTimeMillis() - resetAt) / 86_400_000.0
+        return buildString {
+            val ver = runCatching {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            }.getOrNull() ?: "?"
+            append("# standby soak ${Date()} (${Build.MODEL}, companion v$ver)\n")
+            append("window: ${"%.1f".format(days)} days since " +
+                "${if (resetAt == 0L) "-" else Date(resetAt).toString()}\n")
+            append("service starts: boot=${get(SoakStats.STARTS_BOOT)} " +
+                "update=${get(SoakStats.STARTS_UPDATE)} " +
+                "other=${get(SoakStats.STARTS_OTHER)}\n")
+            append("watch link: disconnects=${get(SoakStats.DISCONNECTS)} " +
+                "downtime=${get(SoakStats.DOWNTIME_S) / 60}m " +
+                "link-faults=${get(SoakStats.LINK_FAULTS)} " +
+                "self-heals=${get(SoakStats.SELF_HEALS)}\n")
+            val storeTag = if (PebbleAppPolicy.storeMode(
+                    PebbleAppPolicy.parse(settings.pebbleAppMode), settings.dlEverSeen))
+                " (store-app mode)" else ""
+            append("worker: dl-records=${get(SoakStats.DL_RECORDS)}$storeTag " +
+                "faults=${get(SoakStats.WORKER_FAULTS)} " +
+                "sensor-faults=${get(SoakStats.SENSOR_FAULTS)} " +
+                "notworn-nags=${get(SoakStats.NOTWORN_NAGS)}\n")
+            if (get(SoakStats.WORKER_HEAP_LAST) > 0)
+                append("worker heap: last=${get(SoakStats.WORKER_HEAP_LAST)}B " +
+                    "min=${get(SoakStats.WORKER_HEAP_MIN)}B " +
+                    "(gate: warn <512B)\n")
+            append("alarms: pre=${get(SoakStats.PREALARMS)} " +
+                "full=${get(SoakStats.ALARMS)} " +
+                "server-fails=${get(SoakStats.SERVER_FAILS)}\n")
+            if (get(SoakStats.OUTAGE_AT) > 0)
+                append("outage drill: detect=${get(SoakStats.OUTAGE_DETECT_S)}s " +
+                    "reconnect=${get(SoakStats.OUTAGE_RECONNECT_S)}s\n")
+            if (get(SoakStats.BOOT_RECOVERY_AT) > 0)
+                append("last boot recovery: " +
+                    "${get(SoakStats.BOOT_RECOVERY_DELAY_S)}s after boot\n")
+        }
+    }
 
     /** BootReceiver marks its firing BEFORE starting the service, so the
      *  service-start classification works in either start order. */

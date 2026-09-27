@@ -76,13 +76,14 @@ object Ui {
     }
 
     /** ACTION_SEND a file through the FileProvider (never a text extra —
-     *  large extras kill the process, see CmLog.exportForShare). */
-    fun shareFile(activity: android.app.Activity, file: java.io.File, subject: String, title: String) {
+     *  large extras kill the process: Binder limit, field 2026-09-07). */
+    fun shareFile(activity: android.app.Activity, file: java.io.File, subject: String,
+                  title: String, mime: String = "text/plain") {
         val uri = androidx.core.content.FileProvider.getUriForFile(
             activity, activity.packageName + ".fileprovider", file)
         activity.startActivity(android.content.Intent.createChooser(
             android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "text/plain"
+                type = mime
                 putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)

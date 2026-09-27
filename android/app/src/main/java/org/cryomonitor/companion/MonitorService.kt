@@ -681,6 +681,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
             if (ack.command != null) {
                 pendingCommandAck = ack.command
                 if (ack.command == "latency_drill") runLatencyDrill()
+                if (ack.command.startsWith("diag_request:")) onDiagnosticsRequest(ack.command)
             }
         } else {
             // One miss is usually a transient (cell handover, Doze exit,
@@ -920,6 +921,35 @@ class MonitorService : Service(), PebbleTransport.Listener {
             .build())
     }
 
+    /** The server asked for logs (consented-diagnostics D4). Nothing is
+     *  sent here: the request is stored and the wearer is told; only the
+     *  Send button on the log screen uploads. Redelivery of the same
+     *  request (lost response before the ack) does not notify twice. */
+    private fun onDiagnosticsRequest(cmd: String) {
+        val req = DiagnosticsBundle.Request.fromCommand(cmd, System.currentTimeMillis())
+        if (req == null) { CmLog.w(TAG, "ignoring malformed request: $cmd"); return }
+        val current = DiagnosticsBundle.Request.decode(settings.pendingDiagRequest)
+        if (current?.id == req.id) return
+        settings.pendingDiagRequest = req.encode()
+        CmLog.i(TAG, "diagnostics requested by the server: ${req.days} day(s), id=${req.id}")
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(NotificationChannel(
+            CHANNEL_REQUESTS, "Requests from your server", NotificationManager.IMPORTANCE_DEFAULT))
+        val open = PendingIntent.getActivity(this, 1,
+            Intent(this, LogActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE)
+        val text = "Your Standby server asks for the last ${req.days} day(s) of logs. " +
+            "Nothing is sent unless you tap Send."
+        nm.notify(NOTIF_DIAG_ID, Notification.Builder(this, CHANNEL_REQUESTS)
+            .setContentTitle("Diagnostics requested")
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build())
+    }
+
     private fun updateNotification() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.notify(NOTIF_ID, buildNotification(statusLine()))
@@ -976,6 +1006,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
         const val NOTIF_ID = 1
         const val NOTIF_FAULT_ID = 2
         const val NOTIF_ALARM_ID = 3
+        const val NOTIF_DIAG_ID = 4
+        const val CHANNEL_REQUESTS = "requests"
         const val ACTION_USER_CANCEL = "org.cryomonitor.USER_CANCEL"
         const val ACTION_TEST_ALARM = "org.cryomonitor.TEST_ALARM"
         const val ACTION_ALERT_CANCELLED = "org.cryomonitor.ALERT_CANCELLED"

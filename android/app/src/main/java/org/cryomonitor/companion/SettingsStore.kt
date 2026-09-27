@@ -94,4 +94,11 @@ class SettingsStore(context: Context) {
     var telegramDirectFired: Boolean
         get() = p.getBoolean("telegram_direct_fired", false)
         set(v) = p.edit().putBoolean("telegram_direct_fired", v).apply()
+
+    /** A diagnostics request from the server waiting for the wearer's
+     *  answer: "id|days|receivedAtMs", empty when none. The server can ask;
+     *  only a tap in the app sends (consented-diagnostics D4). */
+    var pendingDiagRequest: String
+        get() = p.getString("pending_diag_request", "") ?: ""
+        set(v) = p.edit().putString("pending_diag_request", v).apply()
 }

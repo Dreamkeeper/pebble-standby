@@ -60,32 +60,9 @@ object CmLog {
     @Synchronized
     fun dump(): String = ring.joinToString("\n")
 
-    /**
-     * Write the log to a file for sharing. Sharing the ring as an Intent
-     * text extra crashed the whole process on large logs (Binder
-     * transaction limit ~1 MB, field 2026-09-07): the chooser never
-     * appeared, the in-memory ring died with the process — and so did the
-     * monitor service. Files have no such limit. Prefers the on-disk daily
-     * files (complete history) and falls back to the ring; capped to the
-     * last [maxBytes] so a week of debug chatter still shares quickly.
-     */
-    @Synchronized
-    fun exportForShare(context: Context, maxBytes: Int = 2_000_000): File? = runCatching {
-        val dir = File(context.cacheDir, "share").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() }
-        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
-        val out = File(dir, "standby-log-$stamp.txt")
-        val files = logDir?.listFiles { f -> f.name.startsWith("cm-") && f.name.endsWith(".log") }
-            ?.sortedBy { it.name } ?: emptyList()
-        val sb = StringBuilder()
-        if (files.isNotEmpty()) files.forEach { sb.append(it.readText()) } else sb.append(dump())
-        val text = if (sb.length > maxBytes) {
-            val cut = sb.indexOf("\n", sb.length - maxBytes) + 1
-            "[... ${sb.length - cut} earlier bytes omitted ...]\n" + sb.substring(cut)
-        } else sb.toString()
-        out.writeText(text)
-        out
-    }.getOrNull()
+    /** Directory holding the daily cm-YYYYMMDD.log files (the source of
+     *  every diagnostics bundle — see DiagnosticsBundle). */
+    fun logDirectory(): File? = logDir
 
     @Synchronized
     fun clear() {

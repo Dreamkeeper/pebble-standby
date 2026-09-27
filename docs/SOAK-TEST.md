@@ -75,8 +75,10 @@ and is the release evidence for "runs unattended".
 
 ## Known issues under observation
 
-- **Post-mortem without ADB (2026-09-09).** Debug -> View logs -> Share
-  exports the companion's daily files; `python tools/worker_log_timeline.py
+- **Post-mortem without ADB (2026-09-09, bundle 2026-09-27).** Debug ->
+  View logs -> Share (or Send to my server) exports the companion's
+  daily files for a chosen range as one zip — the old 2 MB text tail
+  lost everything older than about four days; `python tools/worker_log_timeline.py
   cm-YYYYMMDD.log` rebuilds the watch's true per-minute timeline (record
   time = log time - flush latency), lists nags/hunts/gated readings and
   prints a window around each nag. This is how the 02:05 sleeping

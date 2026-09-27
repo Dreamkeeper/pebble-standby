@@ -3,9 +3,11 @@ package org.cryomonitor.companion
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -28,6 +30,13 @@ class ServerClient(
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
+        .build()
+
+    /** A week of logs is a few hundred KB compressed, but a slow uplink
+     *  must not hit the 20 s budget meant for heartbeats. */
+    private val uploadHttp = http.newBuilder()
+        .callTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
         .build()
 
     val configured: Boolean get() = urlProvider().isNotEmpty()
@@ -207,6 +216,47 @@ class ServerClient(
         call("POST", "/api/v1/offline-window",
              JSONObject().put("duration_s", durationS)) != null
 
+    // ---- diagnostics (consented-diagnostics D3/D4) ----
+
+    sealed class UploadResult {
+        data class Ok(val id: String) : UploadResult()
+        data class Failed(val why: String) : UploadResult()
+    }
+
+    /** Upload a bundle the wearer confirmed. The only path by which logs
+     *  reach the server; there is no server-initiated pull. */
+    fun uploadDiagnostics(bundle: File, days: Int, requestId: String?): UploadResult {
+        if (!configured) return UploadResult.Failed("no server URL set")
+        val q = "?days=$days" + (requestId?.let {
+            "&request_id=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
+        val url = urlProvider().trimEnd('/') + "/api/v1/diagnostics" + q
+        val req = Request.Builder().url(url)
+            .header("Authorization", "Bearer ${tokenProvider()}")
+            .post(bundle.asRequestBody(ZIP))
+            .build()
+        return try {
+            uploadHttp.newCall(req).execute().use { r ->
+                CmLog.i(TAG, "POST $url -> ${r.code} (${bundle.length()} B)")
+                when {
+                    r.isSuccessful -> UploadResult.Ok(runCatching {
+                        JSONObject(r.body?.string() ?: "{}").optString("id")
+                    }.getOrDefault(""))
+                    r.code == 401 -> UploadResult.Failed("token rejected (401)")
+                    r.code == 413 -> UploadResult.Failed("too large for this server (413)")
+                    else -> UploadResult.Failed("HTTP ${r.code}")
+                }
+            }
+        } catch (e: IOException) {
+            CmLog.i(TAG, "POST $url failed: $e")
+            UploadResult.Failed("unreachable: ${e.javaClass.simpleName}")
+        }
+    }
+
+    fun declineDiagnostics(requestId: String): Boolean =
+        request("POST", "/api/v1/diagnostics/requests/" +
+                java.net.URLEncoder.encode(requestId, "UTF-8") + "/decline",
+                JSONObject()).first in 200..299
+
     // ---- plumbing ----
 
     private fun postForSave(path: String, body: JSONObject,
@@ -271,6 +321,7 @@ class ServerClient(
     private companion object {
         const val TAG = "ServerClient"
         val JSON = "application/json".toMediaType()
+        val ZIP = "application/zip".toMediaType()
     }
 }
 
