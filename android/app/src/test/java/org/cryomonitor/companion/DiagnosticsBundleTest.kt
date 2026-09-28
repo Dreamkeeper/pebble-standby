@@ -51,8 +51,10 @@ class DiagnosticsBundleTest {
     fun `stored secrets and token shapes are redacted`() {
         val r = DiagnosticsBundle.Redactor(listOf("s3cret-api-token-value", "", "short"))
         assertEquals("auth [redacted] ok", r.apply("auth s3cret-api-token-value ok"))
-        assertEquals("bot [redacted] x",
-            r.apply("bot 123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw x"))
+        // Token-shaped test value assembled at run time: a literal in the
+        // source trips secret scanners (GitHub alert #1, 2026-09-28).
+        val fakeBotToken = "123456789:" + "A".repeat(20) + "b".repeat(15)
+        assertEquals("bot [redacted] x", r.apply("bot $fakeBotToken x"))
         assertEquals("Authorization: Bearer [redacted]",
             r.apply("Authorization: Bearer abc.def-123"))
         assertEquals("GET /api/v1/status?token=[redacted]&x=1",
