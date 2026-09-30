@@ -26,7 +26,7 @@ CHECKIN's own buzzes cancelled it; field 2026-09-30 07:31: the same,
 because the firmware stops setting the flag for a worker after any app
 exits — the announcement does not depend on the firmware).
 
-#### Scenario: Motion dismisses a pulse-loss or non-motion check-in
+#### Scenario: Motion dismisses a check-in
 - **WHEN** a pulse-loss or non-motion alert is in CHECKIN stage
 - **AND** sustained wrist motion is detected (three motion-seconds
   within ten seconds)
