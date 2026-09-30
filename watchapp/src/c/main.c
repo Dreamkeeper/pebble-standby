@@ -229,13 +229,28 @@ static const char *detector_name(uint8_t det) {
   }
 }
 
+/* Every vibration is announced to the worker first (WMSG_VIBE) so the
+ * detectors ignore the motor and the case ringing: the firmware's
+ * did_vibrate flag dies for a worker after any app exit (2026-09-30). */
+static void buzz_announce(uint32_t ms) {
+  AppWorkerMessage m = {.data0 = (uint16_t)(ms > 65000u ? 65000u : ms)};
+  app_worker_send_message(WMSG_VIBE, &m);
+}
+static void buzz_short(void) { buzz_announce(300); vibes_short_pulse(); }
+static void buzz_double(void) { buzz_announce(700); vibes_double_pulse(); }
+static void buzz_pattern(const uint32_t *seg, uint32_t n) {
+  uint32_t total = 0;
+  for (uint32_t i = 0; i < n; i++) total += seg[i];
+  buzz_announce(total);
+  vibes_enqueue_custom_pattern((VibePattern){.durations = seg, .num_segments = n});
+}
+
 static void alert_vibe(void) {
   if (s_alert_action.type == CM_ACT_COUNTDOWN_START) {
     static const uint32_t seg[] = {400, 200, 400, 200, 400};
-    VibePattern pat = {.durations = seg, .num_segments = ARRAY_LENGTH(seg)};
-    vibes_enqueue_custom_pattern(pat);
+    buzz_pattern(seg, ARRAY_LENGTH(seg));
   } else {
-    vibes_double_pulse();
+    buzz_double();
   }
 }
 
@@ -391,7 +406,7 @@ static void handle_action(const cm_action *a) {
     case CM_ACT_NOTWORN_NAG:
       s_nag_hold = true;
       s_nag_hold_ticks = CM_NAG_HOLD_S;
-      vibes_double_pulse();
+      buzz_double();
       text_layer_set_text(s_status_layer, "Not worn?");
       text_layer_set_text(s_detail_layer, "Re-wear the watch,\nor UP to suspend");
       send_to_phone(PMSG_NOTWORN, a);
@@ -399,14 +414,14 @@ static void handle_action(const cm_action *a) {
     case CM_ACT_SENSOR_FAULT:
       s_nag_hold = true;
       s_nag_hold_ticks = CM_NAG_HOLD_S;
-      vibes_double_pulse();
+      buzz_double();
       text_layer_set_text(s_status_layer, "No pulse signal");
       text_layer_set_text(s_detail_layer,
                           "Sensor dead, or carried\noff-wrist? Reboot the\nwatch, or UP to suspend");
       send_to_phone(PMSG_SENSOR_FAULT, a);
       break;
     case CM_ACT_CHECKIN_REMINDER:
-      vibes_short_pulse();  /* TODO show "check-in due in N min" */
+      buzz_short();  /* TODO show "check-in due in N min" */
       break;
     case CM_ACT_LATENCY_DRILL: {
       /* S1: worker stamped arm + fire times on our shared wall clock.
@@ -421,7 +436,7 @@ static void handle_action(const cm_action *a) {
       uint32_t now = app_now_ms();
       uint32_t delta = fire ? now - fire : 0;
       uint32_t watch_total = arm ? now - arm : 0;
-      vibes_short_pulse();
+      buzz_short();
       DictionaryIterator *out;
       if (app_message_outbox_begin(&out) == APP_MSG_OK) {
         dict_write_uint8(out, MESSAGE_KEY_MSG_TYPE, PMSG_DRILL_RESULT);
@@ -446,7 +461,7 @@ static void handle_action(const cm_action *a) {
       break;
     case CM_ACT_SUSPEND_EXPIRED:
     case CM_ACT_AUTO_RESUMED:
-      vibes_double_pulse();
+      buzz_double();
       s_nag_hold = false;
       text_layer_set_text(s_status_layer, "Monitoring");
       text_layer_set_text(s_detail_layer, HINTS_TEXT);
@@ -459,7 +474,7 @@ static void handle_action(const cm_action *a) {
       send_to_phone(PMSG_CHARGING, a); /* SECONDS = 1 */
       break;
     case CM_ACT_CHARGING_ENDED:
-      vibes_short_pulse();
+      buzz_short();
       text_layer_set_text(s_status_layer, "Monitoring");
       text_layer_set_text(s_detail_layer, HINTS_TEXT);
       send_to_phone(PMSG_CHARGING, a); /* SECONDS = 0 */

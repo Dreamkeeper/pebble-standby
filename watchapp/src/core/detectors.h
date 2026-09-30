@@ -266,6 +266,11 @@ void cm_resume(cm_core *c, uint32_t now_ms);       /* manual early resume */
 void cm_set_charging(cm_core *c, int charging, uint32_t now_ms);
                                     /* charger state = implicit suspension */
 void cm_set_lab_hold(cm_core *c, int hold, uint32_t now_ms);
+/* The shell is about to run the motor for duration_ms (or a known
+ * external vibration such as the alarm clock is due): treat every sample
+ * until the motor stops + delivery latency + ringing as neither motion
+ * nor a shock. Extends an active guard, never shortens it. */
+void cm_vibe_guard(cm_core *c, uint32_t duration_ms, uint32_t now_ms);
                                     /* S4 sensor lab: silent detector hold */
 
 /* Output: returns 1 while actions are pending */

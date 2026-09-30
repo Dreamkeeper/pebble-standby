@@ -248,8 +248,11 @@ static void test_impact_cancelled_by_motion(void) {
   CHECK(count_type(CM_ACT_ALARM) == 0);
 }
 
-static void test_impact_checkin_motion_dismiss(void) {
-  g_test = "impact_checkin_motion_dismiss";
+/* Owner decision 2026-09-30: once the impact screen is up, only a button
+ * press ends it. Eight field check-ins (09-23..09-30) had cancelled
+ * themselves from their own buzz; a fall victim's twitch must not either. */
+static void test_impact_checkin_needs_button(void) {
+  g_test = "impact_checkin_needs_button";
   cm_config cfg = test_cfg();
   cfg.enabled[CM_DET_PULSE] = 0;
   cfg.enabled[CM_DET_NOTWORN] = 0;
@@ -261,13 +264,83 @@ static void test_impact_checkin_motion_dismiss(void) {
   CHECK(count_type(CM_ACT_CHECKIN_START) == 1);
   log_reset();
 
-  sec_moving(); /* one bump: not a wearer */
+  sec_moving(); sec_moving(); sec_moving(); /* sustained motion: still not enough */
   CHECK(count_type(CM_ACT_ALERT_CANCELLED) == 0);
-  sec_moving(); sec_moving(); /* sustained motion dismisses */
+  CHECK(cm_current_stage(&core) == CM_STAGE_CHECKIN);
+
+  cm_user_ok(&core, now_ms);
+  drain();
   const cm_action *cc = find_type(CM_ACT_ALERT_CANCELLED);
   CHECK(cc != 0);
-  CHECK(cc && cc->reason == CM_CANCEL_MOTION);
+  CHECK(cc && cc->reason == CM_CANCEL_USER);
   CHECK(cm_current_stage(&core) == CM_STAGE_NONE);
+}
+
+/* one second holding a single high-G sample: a shock if unguarded */
+static void sec_shock(void) {
+  now_ms += 1000;
+  cm_accel_sample s[25];
+  for (int i = 0; i < 25; i++) { s[i].x = 0; s[i].y = 0; s[i].z = -1000; s[i].did_vibrate = 0; }
+  s[12].z = -4200; /* > crash_above_mg (3800) */
+  cm_accel_feed(&core, s, 25, now_ms);
+  cm_tick(&core, now_ms, sim_hour);
+  drain();
+}
+
+/* The shell announces each buzz (WMSG_VIBE) because the firmware's
+ * did_vibrate flag dies for a worker after any app exit (2026-09-30):
+ * for the motor duration + 1 s delivery + 1.5 s ringing, unflagged jerks
+ * and high-G samples are neither motion nor a shock. */
+static void test_announced_buzz_is_neither_motion_nor_shock(void) {
+  g_test = "announced_buzz_is_neither_motion_nor_shock";
+  cm_config cfg = test_cfg();
+  cfg.enabled[CM_DET_PULSE] = 0;
+  cfg.enabled[CM_DET_NOTWORN] = 0;
+  setup(&cfg);
+  warmup();
+  uint32_t motion_before = core.last_motion_ms;
+
+  cm_vibe_guard(&core, 700, now_ms);          /* 700 ms double pulse */
+  sec_moving(); sec_shock(); sec_moving();    /* 3 s: inside 700+1000+1500 */
+  CHECK(core.last_motion_ms == motion_before); /* not motion */
+  CHECK(core.impact_phase == 0);               /* not a shock */
+  secs_still_worn(70);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+
+  /* a later announcement never shortens an active guard */
+  cm_vibe_guard(&core, 5000, now_ms);
+  uint32_t until = core.vibe_guard_until_ms;
+  cm_vibe_guard(&core, 100, now_ms);
+  CHECK(core.vibe_guard_until_ms == until);
+  secs_still(9);                                /* guard (5+2.5 s) expires */
+
+  /* after the window, motion counts again */
+  sec_moving();
+  CHECK(core.last_motion_ms == now_ms);
+}
+
+/* The alarm clock: the worker guards from 15 s before the alarm to 120 s
+ * after (field 2026-09-30 07:30: alarm vibration -> "hard shock" -> a
+ * check-in once the wearer lay still). Same mechanism, long window. */
+static void test_alarm_window_shock_is_not_a_fall(void) {
+  g_test = "alarm_window_shock_is_not_a_fall";
+  cm_config cfg = test_cfg();
+  cfg.enabled[CM_DET_PULSE] = 0;
+  cfg.enabled[CM_DET_NOTWORN] = 0;
+  setup(&cfg);
+  warmup();
+
+  cm_vibe_guard(&core, 135000, now_ms);        /* 15 s lead + 120 s tail */
+  secs_still(15);
+  sec_shock(); sec_shock(); sec_shock();       /* the alarm ringing */
+  secs_still_worn(66);                         /* snoozed, lying still */
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+  CHECK(core.impact_phase == 0);
+
+  /* the same shock outside any window is still a candidate */
+  secs_still(60);
+  sec_shock();
+  CHECK(core.impact_phase == 2);
 }
 
 static void test_pulse_loss_full_ladder(void) {
@@ -1195,7 +1268,9 @@ int main(void) {
   test_defaults();
   test_impact_full_ladder();
   test_impact_cancelled_by_motion();
-  test_impact_checkin_motion_dismiss();
+  test_impact_checkin_needs_button();
+  test_announced_buzz_is_neither_motion_nor_shock();
+  test_alarm_window_shock_is_not_a_fall();
   test_pulse_loss_full_ladder();
   test_pulse_returns_during_hunt();
   test_pulse_checkin_dismissed_by_pulse();

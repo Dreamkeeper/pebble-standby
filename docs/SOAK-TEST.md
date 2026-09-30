@@ -75,6 +75,17 @@ and is the release evidence for "runs unattended".
 
 ## Known issues under observation
 
+- **Own buzz counted as motion (2026-09-30, watchapp 0.5.8).** Eight
+  impact check-ins between 09-23 and 09-30 cancelled themselves 2-3 s
+  after opening: PebbleOS stops setting `did_vibrate` for a background
+  worker after any foreground app exits (`prv_app_cleanup` ->
+  `sys_vibe_history_stop_collecting`), so the 0.5.6 guard never engaged.
+  The app now announces every buzz to the worker (`WMSG_VIBE`), the
+  worker guards a window around the alarm clock, and an impact check-in
+  ends only on SELECT. Watch for: no morning impact check-ins; a
+  deliberate desk shock + stillness opens a screen that stays until
+  SELECT.
+
 - **Post-mortem without ADB (2026-09-09, bundle 2026-09-27).** Debug ->
   View logs -> Share (or Send to my server) exports the companion's
   daily files for a chosen range as one zip — the old 2 MB text tail

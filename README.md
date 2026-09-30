@@ -49,7 +49,7 @@ an Android companion app, and an optional self-hosted server.
 Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
-heartbeat gaps). Current builds: watchapp **0.5.7**, companion
+heartbeat gaps). Current builds: watchapp **0.5.8**, companion
 **0.6.8**, all in [`dist/`](dist/).
 
 What the field testing taught, each with a fix and a test:
@@ -61,7 +61,10 @@ What the field testing taught, each with a fix and a test:
 - **False-alarm classes closed** — a sleeping wearer's steady pulse is
   not "not worn" (the 1 Hz hunt arbitrates first); a desk bump or a bed
   partner turning is not "I'm fine" (only sustained motion dismisses);
-  the alert's own vibration is never motion; a set-down shock is not a
+  the alert's own vibration is never motion (announced to the worker,
+  since the firmware flag dies for workers); the alarm clock is not a
+  shock; an impact check-in ends only on a button press; a set-down
+  shock is not a
   fall; sensor-fault vs not-worn discrimination; per-sample HR-quality
   gating validated against a 450-sample sensor lab; carry mode.
 - **Survivability** — phone reboot/app-update recovery, Doze-proof
@@ -116,7 +119,7 @@ cd server && cp .env.example .env   # set CM_API_TOKEN etc.
 docker compose up -d --build        # API on :8080, ntfy on :8090
 ```
 
-Tests: `watchapp/tests` (host C, gcc/MSVC — 216 checks), `server/tests`
+Tests: `watchapp/tests` (host C, gcc/MSVC — 225 checks), `server/tests`
 (pytest — 87 checks), and `android` JVM unit tests (`gradle test`, 36).
 
 Internal identifiers (Android package `org.cryomonitor.companion`,

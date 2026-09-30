@@ -282,7 +282,9 @@ static void accel_handler(AccelData *data, uint32_t num_samples) {
     s[i].z = data[i].z;
     s[i].did_vibrate = data[i].did_vibrate ? 1 : 0;
   }
+#if CM_WORKER_VERBOSE
   uint32_t motion_before = s_core.last_motion_ms;
+#endif
   cm_accel_feed(&s_core, s, n, mono_ms());
 #if CM_WORKER_VERBOSE
   if (s_debug) {
@@ -361,8 +363,25 @@ static void log_heartbeat(void) {
 
 static uint32_t s_last_wall_ms;
 
+/* The wearer's alarm clock is a strong, long vibration the worker cannot
+ * see coming through did_vibrate (see cm_vibe_guard): peek the next
+ * enabled alarm and guard from shortly before it rings until well after
+ * (field 2026-09-30 07:30: alarm vibration -> "hard shock" -> check-in).
+ * Snoozed re-rings are not exposed by the firmware. On diorite the SDK
+ * defines the peek as 0 and this compiles to nothing. */
+#define CM_ALARM_GUARD_LEAD_S 15
+#define CM_ALARM_GUARD_TAIL_S 120
+static void alarm_guard_check(void) {
+  time_t next = 0;
+  if (!alarm_service_peek_next(&next)) return;
+  int32_t delta = (int32_t)(next - time(NULL)); /* seconds until it rings */
+  if (delta > CM_ALARM_GUARD_LEAD_S || delta < -CM_ALARM_GUARD_TAIL_S) return;
+  cm_vibe_guard(&s_core, (uint32_t)(delta + CM_ALARM_GUARD_TAIL_S) * 1000u, mono_ms());
+}
+
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   s_mono_ms += 1000;
+  if (tick_time->tm_sec % 10 == 0) alarm_guard_check();
   /* Wall-clock jump detection: suspensions deliberately keep wall-clock
    * semantics ("30 min" means 30 wall minutes), so on a correction the
    * persisted epoch deadline re-syncs the mono deadline. Detectors are
@@ -490,6 +509,7 @@ static void worker_message_handler(uint16_t type, AppWorkerMessage *m) {
       persist_write_int(PK_DEBUG, s_debug);
       WLOG("worker debug %s", s_debug ? "ON" : "off");
       break;
+    case WMSG_VIBE: cm_vibe_guard(&s_core, m->data0, mono_ms()); break;
     case WMSG_SET_QMETRIC:
       s_qmetric = (uint8_t)m->data0;
       persist_write_int(PK_QMETRIC, s_qmetric);

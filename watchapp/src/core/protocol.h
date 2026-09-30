@@ -52,6 +52,9 @@ enum {
                              data0 = raw peek bpm, data1 = free heap / 64 B,
                              data2 = seconds since last HR event */
   WMSG_SET_QMETRIC = 13,  /* app->worker: data0 = 0/1 — quality metric OK */
+  WMSG_VIBE = 14,         /* app->worker: data0 = motor duration ms; sent
+                             BEFORE every vibes_* call so the worker can
+                             ignore its own buzz (cm_vibe_guard) */
   WMSG_DIAG = 12          /* worker->app (debug only, with each status):
                              data0 = s since last bpm CHANGE (cap 9999),
                              data1 = s since last motion (cap 9999),

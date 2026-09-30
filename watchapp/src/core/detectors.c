@@ -117,6 +117,10 @@ void cm_init(cm_core *c, const cm_config *cfg, uint32_t now_ms) {
  * cancelled one within a second. Jerks this long after a flagged sample
  * are not motion for any detector. */
 #define CM_VIBE_GUARD_MS 1500u
+/* Accel batches (25 samples) arrive once a second stamped with the
+ * delivery time: an announced buzz's samples can land up to 1 s after
+ * the announcement. */
+#define CM_VIBE_LATENCY_MS 1000u
 #define CM_SUSTAIN_WINDOW_MS 10000u
 
 /* Quiet time after a not-worn hunt confirmed a live wrist (see
@@ -230,9 +234,13 @@ static void note_motion(cm_core *c) {
   c->last_sustained_ms = c->now_ms;
 
   /* Sustained motion auto-dismisses the CHECKIN stage — except scheduled
-   * check-ins, which require a deliberate button press, and except SOS. */
+   * check-ins and SOS, which require a deliberate button press, and
+   * except impact: a fall victim's involuntary movement must not silence
+   * the screen, and the screen's own buzz must never (owner decision
+   * 2026-09-30 after eight self-cancelled impact check-ins). */
   if (c->stage == CM_STAGE_CHECKIN &&
-      c->stage_det != CM_DET_CHECKIN && c->stage_det != CM_DET_SOS) {
+      c->stage_det != CM_DET_CHECKIN && c->stage_det != CM_DET_SOS &&
+      c->stage_det != CM_DET_IMPACT) {
     cancel_alert(c, CM_CANCEL_MOTION);
   }
   /* Sustained motion during a pulse hunt: not still — stand down silently. */
@@ -304,6 +312,16 @@ void cm_accel_feed(cm_core *c, const cm_accel_sample *s, uint32_t n, uint32_t no
       }
     }
   }
+}
+
+void cm_vibe_guard(cm_core *c, uint32_t duration_ms, uint32_t now_ms) {
+  /* Announced by the shell BEFORE the motor starts (the firmware's
+   * did_vibrate flag is not reliable for a worker: PebbleOS stops
+   * collecting vibe history whenever a foreground app exits and only
+   * restarts it for the first accel subscriber, field 2026-09-30). */
+  c->now_ms = now_ms;
+  uint32_t until = now_ms + duration_ms + CM_VIBE_LATENCY_MS + CM_VIBE_GUARD_MS;
+  if ((int32_t)(until - c->vibe_guard_until_ms) > 0) c->vibe_guard_until_ms = until;
 }
 
 void cm_hr_feed(cm_core *c, uint16_t bpm, uint32_t now_ms) {
