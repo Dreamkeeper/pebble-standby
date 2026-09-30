@@ -272,16 +272,44 @@ static void drain_actions(void) {
   }
 }
 
+#if CM_VIBE_DIAG
+/* Experiment (2026-09-30): count samples the firmware flags did_vibrate.
+ * Persisted on every flagged batch so the app can show them later even
+ * though opening the app itself is an app launch/exit. */
+static uint32_t s_vd_samples, s_vd_bursts;
+#endif
+
 static void accel_handler(AccelData *data, uint32_t num_samples) {
   /* AccelData layout matches cm_accel_sample closely; repack (int16 x/y/z). */
   cm_accel_sample s[25];
   uint32_t n = num_samples > 25 ? 25 : num_samples;
+#if CM_VIBE_DIAG
+  uint32_t flagged = 0;
+#endif
   for (uint32_t i = 0; i < n; i++) {
     s[i].x = data[i].x;
     s[i].y = data[i].y;
     s[i].z = data[i].z;
     s[i].did_vibrate = data[i].did_vibrate ? 1 : 0;
+#if CM_VIBE_DIAG
+    flagged += s[i].did_vibrate;
+#endif
   }
+#if CM_VIBE_DIAG
+  if (flagged) {
+    if (!s_vd_bursts && persist_exists(PK_VIBE_DIAG_SAMPLES)) {
+      s_vd_samples = (uint32_t)persist_read_int(PK_VIBE_DIAG_SAMPLES);
+      s_vd_bursts = (uint32_t)persist_read_int(PK_VIBE_DIAG_BURSTS);
+    }
+    s_vd_samples += flagged;
+    s_vd_bursts++;
+    persist_write_int(PK_VIBE_DIAG_SAMPLES, (int32_t)s_vd_samples);
+    persist_write_int(PK_VIBE_DIAG_BURSTS, (int32_t)s_vd_bursts);
+    persist_write_int(PK_VIBE_DIAG_LAST_T, (int32_t)time(NULL));
+    WLOG("vibe-diag: %lu flagged samples (total %lu, bursts %lu)",
+         (unsigned long)flagged, (unsigned long)s_vd_samples, (unsigned long)s_vd_bursts);
+  }
+#endif
 #if CM_WORKER_VERBOSE
   uint32_t motion_before = s_core.last_motion_ms;
 #endif

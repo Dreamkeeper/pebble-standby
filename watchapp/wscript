@@ -18,6 +18,8 @@ def configure(ctx):
 
 def build(ctx):
     ctx.load('pebble_sdk')
+    # Debug builds: CM_DEFINES="CM_WORKER_VERBOSE=1 CM_VIBE_DIAG=1" pebble build
+    extra_defines = os.environ.get('CM_DEFINES', '').split()
 
     build_worker = os.path.exists('worker_src')
     binaries = []
@@ -25,6 +27,8 @@ def build(ctx):
     cached_env = ctx.env
     for platform in ctx.env.TARGET_PLATFORMS:
         ctx.env = ctx.all_envs[platform]
+        if extra_defines:
+            ctx.env.append_value('DEFINES', extra_defines)
         ctx.set_group(ctx.env.PLATFORM_NAME)
 
         app_elf = '{}/pebble-app.elf'.format(ctx.env.BUILD_DIR)

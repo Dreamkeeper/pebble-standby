@@ -54,6 +54,20 @@ static uint16_t s_alert_seconds_left;
 /* S1 latency drill: keep the app alive a few seconds after sending the
  * result so the outbox flushes before the stale-launch guard pops us. */
 static uint8_t s_drill_hold_ticks;
+#if CM_VIBE_DIAG
+static uint8_t s_vd_show_ticks;
+static char s_vd_buf[80];
+static void vd_render(void) {
+  uint32_t smp = persist_exists(PK_VIBE_DIAG_SAMPLES) ? (uint32_t)persist_read_int(PK_VIBE_DIAG_SAMPLES) : 0;
+  uint32_t bur = persist_exists(PK_VIBE_DIAG_BURSTS) ? (uint32_t)persist_read_int(PK_VIBE_DIAG_BURSTS) : 0;
+  time_t last = persist_exists(PK_VIBE_DIAG_LAST_T) ? (time_t)persist_read_int(PK_VIBE_DIAG_LAST_T) : 0;
+  struct tm *lt = last ? localtime(&last) : NULL;
+  snprintf(s_vd_buf, sizeof(s_vd_buf), "vibe flag: %lu smp\n%lu bursts, last %02d:%02d:%02d",
+           (unsigned long)smp, (unsigned long)bur,
+           lt ? lt->tm_hour : 0, lt ? lt->tm_min : 0, lt ? lt->tm_sec : 0);
+  text_layer_set_text(s_detail_layer, s_vd_buf);
+}
+#endif
 /* S4 sensor lab: the app must stay open to relay worker HR samples. */
 static bool s_lab_hold;
 /* Phone-launched apps are opened FOR something (lab, drill) that arrives
@@ -735,6 +749,9 @@ static void app_tick(struct tm *tick_time, TimeUnits changed) {
   }
   static uint16_t s_hb_seq = 0;
   if (s_drill_hold_ticks) s_drill_hold_ticks--;
+#if CM_VIBE_DIAG
+  if (s_vd_show_ticks) { s_vd_show_ticks--; vd_render(); }
+#endif
   if (s_phone_grace_ticks) s_phone_grace_ticks--;
   /* Poll worker state so the status line stays truthful (suspension
    * countdown, auto-resume, ladder stage) — cheap worker IPC, no radio. */
@@ -796,6 +813,10 @@ static void init(void) {
   window_set_window_handlers(s_main_window, (WindowHandlers){
       .load = main_window_load, .unload = main_window_unload});
   window_stack_push(s_main_window, true);
+#if CM_VIBE_DIAG
+  s_vd_show_ticks = 40;
+  vd_render();
+#endif
 
   app_message_register_inbox_received(inbox_received);
   app_message_open(256, 256);

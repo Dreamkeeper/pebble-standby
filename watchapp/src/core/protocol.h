@@ -27,6 +27,10 @@ enum {
                                of replaying yesterday's nag after a reboot */
   PK_QMETRIC = 11,        /* 0/1: raw-quality metric available (diag fw) —
                              worker gates liveness on quality >= Acceptable */
+  PK_VIBE_DIAG_SAMPLES = 13, /* CM_VIBE_DIAG builds only: did_vibrate-flagged
+                                accel samples seen by the worker, total */
+  PK_VIBE_DIAG_BURSTS = 14,  /* ... batches (seconds) holding >=1 flagged sample */
+  PK_VIBE_DIAG_LAST_T = 15,  /* ... epoch seconds of the last flagged batch */
   PK_EPISODE_SEQ = 12     /* last minted ladder episode id — persisted so
                              episode identity survives worker restarts */
 };
