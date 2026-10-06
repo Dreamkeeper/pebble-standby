@@ -30,10 +30,12 @@ class SettingsStore(context: Context) {
             .split(',').map { it.trim() }.filter { it.isNotEmpty() }
         set(v) = p.edit().putString("tg_chats", v.joinToString(",")).apply()
 
-    /** Local emergency number offered to the WEARER for one-tap dialing. */
+    /** Wearer's OVERRIDE of the emergency number; empty = default by
+     *  country (EmergencyNumber, design D6). Older installs stored "112"
+     *  here as a default, which reads as an override of the same value. */
     var emergencyNumber: String
-        get() = p.getString("emergency_number", "112") ?: "112"
-        set(v) = p.edit().putString("emergency_number", v).apply()
+        get() = p.getString("emergency_number", "") ?: ""
+        set(v) = p.edit().putString("emergency_number", v.trim()).apply()
 
     var wearerName: String
         get() = p.getString("wearer_name", "the wearer") ?: "the wearer"
@@ -101,4 +103,16 @@ class SettingsStore(context: Context) {
     var pendingDiagRequest: String
         get() = p.getString("pending_diag_request", "") ?: ""
         set(v) = p.edit().putString("pending_diag_request", v).apply()
+
+    /** First run finished (or an existing install migrated: a configured
+     *  server counts as set up). "Set up again" never clears this. */
+    var onboardingDone: Boolean
+        get() = p.getBoolean("onboarding_done", false) || serverUrl.isNotEmpty()
+        set(v) = p.edit().putBoolean("onboarding_done", v).apply()
+
+    /** Drills and the sensor lab are hidden until unlocked by a long-press
+     *  on the version line in Diagnostics (owner decision 3). */
+    var diagnosticsUnlocked: Boolean
+        get() = p.getBoolean("diagnostics_unlocked", false)
+        set(v) = p.edit().putBoolean("diagnostics_unlocked", v).apply()
 }

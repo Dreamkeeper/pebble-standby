@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wearer-facing text (spec companion-ui, design D4). The jargon-audit
+     test scans this file: no detector ids or engineering words here.
+     Diagnostics strings live in strings_diagnostics.xml. -->
+<resources>
+    <string name="app_name">Standby</string>
+
+    <!-- Home -->
+    <string name="home_title">Standby</string>
+    <string name="home_watch">Watch</string>
+    <string name="home_people">Your people</string>
+    <string name="home_server">Your server</string>
+    <string name="home_watch_linked">Connected</string>
+    <string name="home_watch_not_linked">Not connected</string>
+    <string name="home_watch_battery">%1$d%%, %2$s</string>
+    <string name="home_watch_last_report">Last report %1$s</string>
+    <string name="home_watch_store_mode">Stock Pebble app: liveness by hourly sync</string>
+    <string name="home_people_count">%1$d contacts in %2$d tiers</string>
+    <string name="home_people_none">No contacts yet</string>
+    <string name="home_people_fallback">Phone-direct Telegram fallback only</string>
+    <string name="home_people_loading">Loading…</string>
+    <string name="home_people_unavailable">Could not load contacts</string>
+    <string name="home_fire_drill">Fire drill</string>
+    <string name="home_server_reachable">Reachable</string>
+    <string name="home_server_unreachable">Cannot be reached</string>
+    <string name="home_server_none">No server. Alerts go out from this phone only.</string>
+    <string name="home_last_alert">Last alert %1$s: %2$s</string>
+    <string name="home_settings">Settings</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_server">Your server</string>
+    <string name="settings_server_sub">Enrol, change or leave your server</string>
+    <string name="settings_pebble">Pebble app on this phone</string>
+    <string name="settings_pebble_sub">How the watch talks to this phone</string>
+    <string name="settings_permissions">Let it run</string>
+    <string name="settings_permissions_sub">Battery, lock screen, pop-ups, autostart</string>
+    <string name="settings_contacts">Contacts &amp; safety net</string>
+    <string name="settings_contacts_sub">Who is alerted, and in what order</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_advanced_sub">Your name, emergency number, fallbacks</string>
+    <string name="settings_diagnostics">Diagnostics</string>
+    <string name="settings_diagnostics_sub">Counters, logs, share with support</string>
+    <string name="settings_setup_again">Set up again</string>
+    <string name="settings_setup_again_sub">Walk through the setup steps once more</string>
+    <string name="settings_version">Standby %1$s</string>
+
+    <!-- Server -->
+    <string name="server_title">Your server</string>
+    <string name="server_enrolled">Enrolled at %1$s</string>
+    <string name="server_not_enrolled">This phone is not enrolled with a server.</string>
+    <string name="server_enrol">Enrol with a code</string>
+    <string name="server_reenrol">Re-enrol</string>
+    <string name="server_explain">Your server alerts your contacts with an Acknowledge button, repeats until someone answers, and raises the alarm itself if this phone goes silent. Without one, this phone can only send a plain Telegram message.</string>
+    <string name="server_status">Status: %1$s</string>
+
+    <!-- Pebble app -->
+    <string name="pebble_title">Pebble app on this phone</string>
+    <string name="pebble_mode">Mode</string>
+    <string name="pebble_mode_auto">Automatic</string>
+    <string name="pebble_mode_patched">Patched Pebble app (watch reports every minute)</string>
+    <string name="pebble_mode_store">Stock Pebble app (hourly sync)</string>
+    <string name="pebble_sync">Hourly sync interval, minutes (0 = off)</string>
+    <string name="pebble_explain">With the stock Pebble app the watch cannot report in the background, so Standby briefly opens the watchapp on a schedule to confirm it is alive.</string>
+
+    <!-- Permissions -->
+    <string name="perm_title">Let it run</string>
+    <string name="perm_intro">These let Standby keep watch in the background and show the alarm over the lock screen. Each row opens the exact system page; come back and it turns green.</string>
+    <string name="perm_battery">Run without battery limits</string>
+    <string name="perm_battery_sub">Battery optimisation exemption</string>
+    <string name="perm_fullscreen">Show the alarm over the lock screen</string>
+    <string name="perm_fullscreen_sub">Full-screen alarm permission</string>
+    <string name="perm_popup">Pop-up windows in the background</string>
+    <string name="perm_popup_sub">Xiaomi / HyperOS: needed for the alarm screen</string>
+    <string name="perm_autostart">Start after reboot</string>
+    <string name="perm_autostart_sub">Xiaomi / HyperOS: Autostart</string>
+    <string name="perm_exact">Exact timers</string>
+    <string name="perm_exact_sub">Alarms and heartbeats on time, even when the phone sleeps</string>
+    <string name="perm_notifications">Notifications</string>
+    <string name="perm_notifications_sub">Status, attention and alarm notifications</string>
+    <string name="perm_granted">Granted</string>
+    <string name="perm_missing">Open settings</string>
+    <string name="perm_unknown">Check manually</string>
+
+    <!-- Advanced -->
+    <string name="adv_title">Advanced</string>
+    <string name="adv_wearer_name">Your name, as it appears in alert texts</string>
+    <string name="adv_emergency">Emergency number</string>
+    <string name="adv_emergency_sub">Default for your country: %1$s. Enter a number only to override it.</string>
+    <string name="adv_fallback_header">Phone-direct fallback</string>
+    <string name="adv_fallback_explain">Used only when an alarm fires and your server cannot be reached. One plain Telegram message, no Acknowledge button.</string>
+    <string name="adv_tg_token">Telegram bot token</string>
+    <string name="adv_tg_chats">Telegram chat ids, comma-separated</string>
+    <string name="adv_tg_test">Test fallback bot</string>
+    <string name="adv_tg_test_title">Fallback bot test</string>
+    <string name="adv_manual_header">Manual server configuration</string>
+    <string name="adv_manual_explain">Enrolment fills these in. Edit only if you know why.</string>
+    <string name="adv_server_url">Server URL</string>
+    <string name="adv_api_token">Server token</string>
+    <string name="adv_save">Save</string>
+    <string name="adv_saved">Saved</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_status">Status</string>
+    <string name="notif_channel_attention">Needs attention</string>
+    <string name="notif_channel_alarms">Alarms</string>
+    <string name="notif_channel_requests">Requests from your server</string>
+    <string name="notif_tap_to_open">Tap to open.</string>
+
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <!-- Contacts & safety net -->
+    <string name="contacts_title">Contacts &amp; safety net</string>
+    <string name="contacts_loading">Loading…</string>
+    <string name="contacts_load_failed">Cannot load contacts (%1$s). Check your server in Settings.</string>
+    <string name="contacts_retry">Retry</string>
+    <string name="contacts_nobody">Alerts reach nobody. Add at least one person below.</string>
+    <string name="contacts_nobody_short">nobody yet</string>
+    <string name="contacts_order">Who is told, and when</string>
+    <string name="contacts_tier_first">Told immediately.</string>
+    <string name="contacts_tier_next">Added if nobody acknowledges within %1$d min.</string>
+    <string name="contacts_tier_repeat">Repeated every %1$d min until someone acknowledges.</string>
+    <string name="contacts_people">People</string>
+    <string name="contacts_add">Add a person</string>
+    <string name="contacts_edit">Edit</string>
+    <string name="contacts_self">Copies to me</string>
+    <string name="contacts_self_title">Copies of alerts to yourself</string>
+    <string name="contacts_self_explain">Get a copy on your own Telegram, ntfy or e-mail whenever your people are alerted. Useful on a second device when this phone is dead. Copies have no Acknowledge button.</string>
+    <string name="contacts_self_off">Leave all empty to turn copies off.</string>
+    <string name="contacts_remove">Remove</string>
+    <string name="contacts_remove_title">Remove %1$s?</string>
+    <string name="contacts_remove_explain">They will no longer be alerted for any alarm.</string>
+    <string name="contacts_verify">Prove it works</string>
+    <string name="contacts_verify_explain">A fire drill sends a real alert to everyone above, tagged TEST. Each person gets an Acknowledge button. Do this once per new person.</string>
+    <string name="contacts_drill_sent">Drill sent. Your people are getting a message tagged TEST.</string>
+    <string name="contact_name">Name</string>
+    <string name="contact_telegram">Telegram chat id</string>
+    <string name="contact_telegram_help">They message your bot once; it replies with their chat id.</string>
+    <string name="contact_ntfy">ntfy topic</string>
+    <string name="contact_email">E-mail</string>
+    <string name="contact_tier">Tier</string>
+    <string name="contact_telegram_self">Your Telegram chat id</string>
+    <string name="contact_ntfy_self">Your ntfy topic</string>
+    <string name="contact_email_self">Your e-mail</string>
+    <string name="channel_telegram">Telegram</string>
+    <string name="channel_ntfy">ntfy</string>
+    <string name="channel_email">e-mail</string>
+
+    <!-- Enrol -->
+    <string name="enrol_title">Enrol this phone</string>
+    <string name="enrol_intro">Ask whoever runs your server for a one-time enrolment code and enter it with the server address. The phone gets its own key; nothing is typed twice.</string>
+    <string name="enrol_code">Enrolment code</string>
+    <string name="enrol_button">Enrol</string>
+    <string name="enrol_url_error">Enter the full https:// address</string>
+    <string name="enrol_code_error">Codes look like XXXX-XXXX</string>
+    <string name="enrol_contacting">Contacting your server…</string>
+    <string name="enrol_done">Enrolled. This phone now watches over %1$s.</string>
+    <string name="enrol_rejected">This code was already used, expired or is not valid. Ask for a new one; codes work exactly once.</string>
+    <string name="enrol_rate_limited">Too many attempts from this network. Wait a while and try again.</string>
+    <string name="enrol_unreachable">Cannot reach %1$s (%2$s). Check the address and your connection, including any VPN the server needs.</string>
+    <string name="enrol_server_error">Server error %1$d. Check the server logs.</string>
+</resources>

@@ -1,28 +1,31 @@
 package org.cryomonitor.companion
 
-import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import android.view.Gravity
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import org.cryomonitor.companion.ui.AlarmScreen
+import org.cryomonitor.companion.ui.countryIso
 
 /**
- * Full-screen alarm over the lock screen: big CANCEL, one-tap dial of the
- * local emergency number for the wearer. The bystander siren is owned by
- * MonitorService (it must sound even if this screen never launches).
- * Pre-alarm (watch countdown running) and full alarm differ only in wording;
- * cancelling either sends USER_OK to the watch and retracts escalation.
+ * Full-screen alarm over the lock screen (spec companion-ui: "readable at
+ * arm's length at night"). Stays an Activity for setShowWhenLocked /
+ * setTurnScreenOn and the full-screen intent (design D2); the content is
+ * Compose and theme-independent. The bystander siren is owned by
+ * MonitorService so it sounds even if this screen never launches.
+ * Cancelling either stage sends USER_OK to the watch and retracts.
  */
-class AlarmActivity : AppCompatActivity() {
+class AlarmActivity : ComponentActivity() {
+
+    private lateinit var settings: SettingsStore
 
     private val cancelledReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) = finish() // watch cancelled
@@ -32,50 +35,23 @@ class AlarmActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+        settings = SettingsStore(this)
 
         val detector = intent.getStringExtra("detector") ?: "alert"
         val preAlarm = intent.getBooleanExtra("preAlarm", false)
+        val seconds = intent.getIntExtra("seconds", 0)
+        val number = EmergencyNumber.resolve(settings.emergencyNumber, countryIso(this))
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(if (preAlarm) Color.rgb(133, 84, 0)
-                               else Ui.error(this))
-            setPadding(Ui.dp(context, 24), Ui.dp(context, 24), Ui.dp(context, 24), Ui.dp(context, 24))
+        setContent {
+            AlarmScreen(
+                detector = detector,
+                preAlarm = preAlarm,
+                countdownSeconds = seconds,
+                emergencyNumber = number,
+                onCancel = { cause -> confirmVibe(); sendCancel(cause) },
+                onCall = { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) },
+            )
         }
-        root.addView(TextView(this).apply {
-            text = if (preAlarm) "PRE-ALARM: $detector" else "ALARM: $detector"
-            textSize = 32f
-            setTextColor(if (preAlarm) Color.WHITE else Ui.onError(this))
-            gravity = Gravity.CENTER
-        })
-        root.addView(TextView(this).apply {
-            text = if (preAlarm)
-                "Watch countdown running.\nCancel here or on the watch if you are OK."
-            else
-                "Contacts are being alerted.\nCancel if this is a false alarm."
-            textSize = 18f
-            setTextColor(if (preAlarm) Color.WHITE else Ui.onError(this))
-            gravity = Gravity.CENTER
-            setPadding(0, Ui.dp(context, 16), 0, Ui.dp(context, 32))
-        })
-        root.addView(Button(this).apply {
-            text = "I'M OK — CANCEL"
-            textSize = 26f
-            setOnClickListener { onCancelPressed() }
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            Ui.dp(this, 88)).apply { bottomMargin = Ui.dp(this@AlarmActivity, 16) })
-        root.addView(Button(this).apply {
-            val settings = SettingsStore(this@AlarmActivity)
-            text = "CALL ${settings.emergencyNumber}"
-            setOnClickListener {
-                startActivity(Intent(Intent.ACTION_DIAL,
-                    Uri.parse("tel:${settings.emergencyNumber}")))
-            }
-        })
-        Ui.applySystemInsets(root)
-        setContentView(root)
 
         val filter = IntentFilter(MonitorService.ACTION_ALERT_CANCELLED)
         if (Build.VERSION.SDK_INT >= 33)
@@ -84,17 +60,14 @@ class AlarmActivity : AppCompatActivity() {
             registerReceiver(cancelledReceiver, filter)
     }
 
-    private fun onCancelPressed() {
-        // Post-event cause picker (Pixel "Share what happened" pattern) —
-        // the cause feeds the learning layer via the retraction message.
-        val causes = arrayOf("Loose strap", "Slept on my arm", "Took the watch off",
-                             "Real event, but I'm fine now", "Other")
-        AlertDialog.Builder(this)
-            .setTitle("Cancelled. What happened?")
-            .setItems(causes) { _, which -> sendCancel(causes[which]) }
-            .setCancelable(false)
-            .setNegativeButton("Skip") { _, _ -> sendCancel("skipped") }
-            .show()
+    /** A cancel is confirmed by a distinct vibration, not only by colour (DESIGN §7). */
+    private fun confirmVibe() {
+        val v: Vibrator? = if (Build.VERSION.SDK_INT >= 31)
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        else @Suppress("DEPRECATION") getSystemService(Vibrator::class.java)
+        runCatching {
+            v?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 80, 60, 80), -1))
+        }
     }
 
     private fun sendCancel(cause: String) {

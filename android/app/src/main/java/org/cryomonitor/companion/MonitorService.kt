@@ -52,6 +52,14 @@ class MonitorService : Service(), PebbleTransport.Listener {
     @Volatile private var serverReachable = true
     @Volatile private var activeEscalationId: String? = null
     @Volatile private var degradedNotified = false
+    @Volatile private var noDeliverableContacts: Boolean? = null
+    @Volatile private var alertStage = 0            // 0 none, 1 countdown, 2 alarm
+    @Volatile private var alertDetector = ""
+    @Volatile private var lastNagT = 0L
+    @Volatile private var lastNagKind = ""
+    @Volatile private var workerFaultActive = false
+    @Volatile private var coveredSinceT = 0L
+    @Volatile private var lastVerdictState: Coverage? = null
     @Volatile private var suspendedUntilT = 0L
     @Volatile private var sirenOn = false
     private var tone: ToneGenerator? = null
@@ -175,8 +183,10 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 if (ep == 0 || ep != lastPreAlarmEpisode) {
                     lastPreAlarmEpisode = ep
                     soak.inc(SoakStats.PREALARMS)
-                    showAlarmUi(det, preAlarm = true)
+                    showAlarmUi(det, preAlarm = true,
+                                seconds = (data[PebbleTransport.KEY_SECONDS] as? Int) ?: 0)
                 }
+                if (alertStage < 1) { alertStage = 1; alertDetector = det; updateNotification() }
             }
             Protocol.PMSG_ALARM -> {
                 val det = detectorName(data)
@@ -188,6 +198,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 } else {
                     if (ep != 0) markEpisodeEscalated(ep)
                     soak.inc(SoakStats.ALARMS)
+                    alertStage = 2; alertDetector = det; updateNotification()
                     startSiren()
                     showAlarmUi(det, preAlarm = false)
                     scope.launch { escalate(det) }
@@ -199,6 +210,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 CmLog.i(TAG, "watch cancelled alert (reason=" +
                     "${data[PebbleTransport.KEY_CANCEL_REASON]}, ep=$ep)")
                 clearAlarmUi()
+                alertStage = 0; alertDetector = ""; updateNotification()
                 sendBroadcast(Intent(ACTION_ALERT_CANCELLED).setPackage(packageName))
                 scope.launch { retract("cancelled_on_watch") }
             }
@@ -255,18 +267,21 @@ class MonitorService : Service(), PebbleTransport.Listener {
             Protocol.PMSG_NOTWORN -> {
                 CmLog.w(TAG, "watch reports not worn")
                 soak.inc(SoakStats.NOTWORN_NAGS)
-                notifyFault("Watch appears OFF-WRIST (no pulse, no motion) " +
-                    "without a suspension — monitoring is blind. Re-wear the " +
-                    "watch or suspend monitoring. Contacts are NOT alerted.")
+                lastNagT = System.currentTimeMillis(); lastNagKind = "notworn"
+                notifyFault("The watch thinks it is not being worn: no pulse signal and " +
+                    "no movement. Put it on, or pause monitoring on the watch. " +
+                    "Nobody has been alerted.")
+                updateNotification()
             }
             Protocol.PMSG_SENSOR_FAULT -> {
                 CmLog.w(TAG, "watch reports sensor fault (no pulse, motion continues)")
                 soak.inc(SoakStats.SENSOR_FAULTS)
-                notifyFault("Watch reports NO PULSE SIGNAL while it keeps " +
-                    "moving — the HR sensor may be dead, or the watch is " +
-                    "carried off-wrist. Reboot the watch, or suspend " +
-                    "monitoring if it is deliberately off. Contacts are " +
-                    "NOT alerted.")
+                lastNagT = System.currentTimeMillis(); lastNagKind = "sensor"
+                notifyFault("No pulse signal while the watch keeps moving: the strap may be " +
+                    "loose, the sensor may have failed, or the watch is in a bag. " +
+                    "Restart the watch, or pause monitoring if this is on purpose. " +
+                    "Nobody has been alerted.")
+                updateNotification()
             }
         }
     }
@@ -406,6 +421,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
     }
 
     private fun retract(reason: String) {
+        if (alertStage != 0) { alertStage = 0; alertDetector = ""; updateNotification() }
         CmLog.i(TAG, "retract: $reason (esc=$activeEscalationId)")
         clearAlarmUi()
         // Resolve by id when we have it; ALSO sweep any open watch alarm on
@@ -429,10 +445,10 @@ class MonitorService : Service(), PebbleTransport.Listener {
     // is off/locked, and shows an urgent heads-up otherwise. The siren is
     // service-owned so a bystander hears it even if no UI ever launches.
 
-    private fun showAlarmUi(detector: String, preAlarm: Boolean) {
+    private fun showAlarmUi(detector: String, preAlarm: Boolean, seconds: Int = 0) {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(
-            CHANNEL_ALARM, "Alarms", NotificationManager.IMPORTANCE_HIGH))
+            CHANNEL_ALARM, getString(R.string.notif_channel_alarms), NotificationManager.IMPORTANCE_HIGH))
         if (Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()) {
             CmLog.w(TAG, "full-screen intents NOT permitted — alarm shows " +
                 "as heads-up only (Settings > Apps > Special access)")
@@ -441,7 +457,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
             Intent(this, AlarmActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra("detector", detector)
-                .putExtra("preAlarm", preAlarm),
+                .putExtra("preAlarm", preAlarm)
+                .putExtra("seconds", seconds),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         nm.notify(NOTIF_ALARM_ID, Notification.Builder(this, CHANNEL_ALARM)
             .setContentTitle(if (preAlarm) "PRE-ALARM: $detector"
@@ -511,6 +528,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 workerSilent > Protocol.WORKER_SILENT_AFTER_S &&
                 !workerFaultNotified) {
                 workerFaultNotified = true
+                workerFaultActive = true
                 soak.inc(SoakStats.WORKER_FAULTS)
                 CmLog.w(TAG, "worker heartbeats stopped (${workerSilent}s) — evicted?")
                 notifyFault("The watch background worker stopped reporting " +
@@ -795,6 +813,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 }
                 if (workerFaultNotified) {
                     workerFaultNotified = false
+                    workerFaultActive = false
                     CmLog.i(TAG, "worker heartbeats resumed")
                 }
                 workerProvisionFaulted = false // worker proof has now arrived
@@ -869,10 +888,11 @@ class MonitorService : Service(), PebbleTransport.Listener {
     /** DEGRADED = alarms would reach nobody. That is a fault, treated like
      *  one: FAULT-channel notification on the transition into degraded. */
     private fun onDegradedState(degraded: Boolean) {
+        noDeliverableContacts = degraded
         if (degraded && !degradedNotified) {
             degradedNotified = true
-            notifyFault("No emergency contacts configured — alarms currently " +
-                "reach NOBODY except this phone. Open Contacts & safety net.")
+            notifyFault("Alerts reach nobody: no contacts yet. Open Contacts & safety net " +
+                "and add at least one person.")
         } else if (!degraded && degradedNotified) {
             degradedNotified = false
             CmLog.i(TAG, "degraded cleared: deliverable contacts exist")
@@ -884,9 +904,9 @@ class MonitorService : Service(), PebbleTransport.Listener {
     private fun buildNotification(text: String): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(
-            CHANNEL_ID, "Monitoring", NotificationManager.IMPORTANCE_LOW))
+            CHANNEL_ID, getString(R.string.notif_channel_status), NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel(
-            CHANNEL_FAULT, "System faults", NotificationManager.IMPORTANCE_HIGH))
+            CHANNEL_FAULT, getString(R.string.notif_channel_attention), NotificationManager.IMPORTANCE_HIGH))
         // The status-bar glyph tells the state at a glance: heartbeat trace
         // = all well; bluetooth-off = watch link down (the critical leg);
         // cloud-off = server leg down (phone-direct fallback active).
@@ -913,7 +933,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
     private fun notifyFault(text: String) {
         val nm = getSystemService(NotificationManager::class.java)
         nm.notify(NOTIF_FAULT_ID, Notification.Builder(this, CHANNEL_FAULT)
-            .setContentTitle("Standby FAULT")
+            .setContentTitle("Standby needs attention")
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setSmallIcon(android.R.drawable.stat_notify_error)
@@ -934,7 +954,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
         CmLog.i(TAG, "diagnostics requested by the server: ${req.days} day(s), id=${req.id}")
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(
-            CHANNEL_REQUESTS, "Requests from your server", NotificationManager.IMPORTANCE_DEFAULT))
+            CHANNEL_REQUESTS, getString(R.string.notif_channel_requests), NotificationManager.IMPORTANCE_DEFAULT))
         val open = PendingIntent.getActivity(this, 1,
             Intent(this, LogActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE)
@@ -951,9 +971,43 @@ class MonitorService : Service(), PebbleTransport.Listener {
     }
 
     private fun updateNotification() {
+        val now = System.currentTimeMillis()
+        val facts = currentFacts(now)
+        var verdict = CoverageState.compute(facts, now)
+        if (verdict.state == Coverage.COVERED && lastVerdictState != Coverage.COVERED) {
+            coveredSinceT = now
+            verdict = CoverageState.compute(facts.copy(coveredSinceT = now), now)
+        } else if (verdict.state != Coverage.COVERED) coveredSinceT = 0L
+        lastVerdictState = verdict.state
+        LiveState.publish(facts.copy(coveredSinceT = coveredSinceT), watchBattery)
         val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(NOTIF_ID, buildNotification(statusLine()))
+        nm.notify(NOTIF_ID, buildNotification(
+            CoverageState.notificationLine(verdict, facts, watchBattery, now)))
+        CmLog.d(TAG, "status: ${statusLine()}")
     }
+
+    /** Everything the coverage model needs, in one snapshot (design D1). */
+    private fun currentFacts(now: Long) = CoverageFacts(
+        onboardingDone = settings.onboardingDone,
+        serverConfigured = server.configured,
+        fallbackConfigured = settings.telegramBotToken.isNotEmpty() &&
+            settings.telegramChatIds.isNotEmpty(),
+        noDeliverableContacts = noDeliverableContacts,
+        watchConnected = watchConnected,
+        lastWatchDataT = lastWatchDataT,
+        lastWorkerProofT = workerLastProofT,
+        storeMode = storeMode(),
+        chargingHold = chargingHold,
+        suspendedUntilT = suspendedUntilT,
+        serverReachable = serverReachable,
+        serverLastResult = server.lastResult,
+        alertStage = alertStage,
+        alertDetector = alertDetector,
+        lastNagT = lastNagT,
+        lastNagKind = lastNagKind,
+        workerFault = workerFaultActive,
+        coveredSinceT = coveredSinceT,
+    )
 
     private fun statusLine(): String {
         // "link" is live Bluetooth truth; "sync" is when the watchAPP last

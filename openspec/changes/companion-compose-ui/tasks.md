@@ -1,20 +1,20 @@
 # Tasks
 
-- [ ] 1. Foundations: Compose BOM + Material 3, `CmTheme` with dynamic
+- [x] 1. Foundations: Compose BOM + Material 3, `CmTheme` with dynamic
        colour, brand fallback and the caution tokens; `CoverageState`
        model with precedence, reasons and actions; JVM tests.
-- [ ] 2. Strings: move wearer-facing text to resources, `DetectorNames`
+- [x] 2. Strings: move wearer-facing text to resources, `DetectorNames`
        mapping, Diagnostics strings in a separate file, jargon-audit
        test; notification texts reworded, channel names renamed.
-- [ ] 3. Host Activity + NavHost; Home with the four cards; the old
+- [x] 3. Host Activity + NavHost; Home with the four cards; the old
        main-screen fields relocated to Settings → Advanced (SMS fields
        hidden on flavours without SMS permissions).
-- [ ] 4. Settings: Server (enrol / change / re-enrol), Pebble app mode,
+- [x] 4. Settings: Server (enrol / change / re-enrol), Pebble app mode,
        Permissions rows with live status, Advanced (wearer name,
        emergency override, watch sync, fallback bot + test).
-- [ ] 5. Contacts & safety net as a composable: tiers explained in
+- [x] 5. Contacts & safety net as a composable: tiers explained in
        place, channel icons, inline "where is my chat id", fire drill.
-- [ ] 6. Alarm screen: composable content in `AlarmActivity`, display
+- [x] 6. Alarm screen: composable content in `AlarmActivity`, display
        countdown, 72 dp cancel, emergency number default by country
        (JVM-tested) with override, cancel vibration, "what happened?"
        sheet.
