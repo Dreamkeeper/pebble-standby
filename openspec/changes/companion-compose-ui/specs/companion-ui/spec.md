@@ -67,6 +67,19 @@ step is used.
 - **THEN** the exact system settings page opens, and on return the row
   reflects the new status without a restart
 
+#### Scenario: Permissions Android cannot report are proven, not "checked manually"
+- **WHEN** the wearer taps Test on "Pop-up windows in the background" or
+  "Show the alarm over the lock screen"
+- **THEN** the service launches a neutral test screen from the background
+  (plain start, or the full-screen-intent path over the lock screen) the
+  way an alarm would, no sound and nobody alerted, and the row then
+  states whether the screen appeared and when it was tested
+
+#### Scenario: Start after reboot is read from evidence
+- **WHEN** the phone has restarted since install
+- **THEN** the row states whether Standby started after that restart and
+  how long it took; Check arms the next restart when there is no evidence
+
 ### Requirement: The alarm screen is readable at arm's length at night
 The alarm screen SHALL show the state word, the cause in wearer words,
 a display-size countdown, a full-width cancel control at least 72 dp
