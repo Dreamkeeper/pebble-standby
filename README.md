@@ -87,7 +87,9 @@ What the field testing taught, each with a fix and a test:
   metric; on the stock Pebble app the companion runs in store-app mode.
 
 See [docs/SOAK-TEST.md](docs/SOAK-TEST.md) for the soak protocol and
-[docs/PLAN.md](docs/PLAN.md) for the roadmap.
+[docs/PLAN.md](docs/PLAN.md) for the roadmap, and
+[docs/DESIGN.md](docs/DESIGN.md) for the UI/UX design pass that the
+Compose rebuild of the companion follows.
 
 ## Building
 
