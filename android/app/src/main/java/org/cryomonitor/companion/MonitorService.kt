@@ -51,6 +51,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
     @Volatile private var faultNotified = false
     @Volatile private var serverReachable = true
     @Volatile private var activeEscalationId: String? = null
+    private lateinit var watchConfig: WatchConfig
     @Volatile private var degradedNotified = false
     @Volatile private var noDeliverableContacts: Boolean? = null
     @Volatile private var alertStage = 0            // 0 none, 1 countdown, 2 alarm
@@ -73,6 +74,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
         serviceStartedT = System.currentTimeMillis()
         server = ServerClient(settings)
         escalator = Escalator(this, settings)
+        watchConfig = WatchConfig(this)
         CmLog.i(TAG, "service starting, server=${settings.serverUrl.isNotEmpty()}")
         startForegroundSafely(buildNotification("Starting…"))
 
@@ -214,6 +216,15 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 sendBroadcast(Intent(ACTION_ALERT_CANCELLED).setPackage(packageName))
                 scope.launch { retract("cancelled_on_watch") }
             }
+            Protocol.PMSG_CONFIG_ACK -> {
+                val field = (data[PebbleTransport.KEY_DETECTOR] as? Int) ?: -1
+                val value = (data[PebbleTransport.KEY_SECONDS] as? Int) ?: 0
+                val ok = ((data[PebbleTransport.KEY_CANCEL_REASON] as? Int) ?: 1) != 0
+                watchConfig.onAck(field, value, ok)
+                CmLog.i(TAG, "watch config ack field=$field value=$value ok=$ok " +
+                    "(${watchConfig.pendingCount()} pending)")
+                sendBroadcast(Intent(ACTION_CONFIG_CHANGED).setPackage(packageName))
+            }
             Protocol.PMSG_SUSPENDED -> {
                 // SECONDS carries the suspension duration; 0 = ended
                 // (expired or auto-resumed). Wall-clock deadline self-clears
@@ -287,6 +298,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
     }
 
     override fun onWatchappOpened() {
+        pushWatchConfig(afterOpen = true)
         // The lab must survive any open path: auto-launch that raced the
         // lab-on message, or the wearer opening the app by hand mid-lab.
         // Re-arm shortly after the inbox registers.
@@ -340,6 +352,25 @@ class MonitorService : Service(), PebbleTransport.Listener {
      * raised until a launch truly fires (review 2026-08-29 finding 6).
      */
     @Volatile private var selfHealPending: String? = null
+
+    /** Send the wearer's detector settings to the watch (watch-settings-sync
+     *  D5): every field until the first ack, then only the pending ones.
+     *  150 ms apart so the watch's inbox keeps up. */
+    private fun pushWatchConfig(afterOpen: Boolean) {
+        val batch = watchConfig.toSend()
+        if (batch.isEmpty()) return
+        scope.launch {
+            if (afterOpen) delay(1_200) // the watchapp's inbox registers after launch
+            CmLog.i(TAG, "watch config: sending ${batch.size} field(s)")
+            for ((f, v) in batch) {
+                watchLink.send(mapOf(
+                    PebbleTransport.KEY_MSG_TYPE to Protocol.PMSG_CONFIG_SET,
+                    PebbleTransport.KEY_DETECTOR to f.id,
+                    PebbleTransport.KEY_SECONDS to v))
+                delay(150)
+            }
+        }
+    }
 
     private fun selfHealLaunch(reason: String) {
         val now = System.currentTimeMillis()
@@ -722,6 +753,12 @@ class MonitorService : Service(), PebbleTransport.Listener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_WATCH_CONFIG_CHANGED -> {
+                // Open: send now. Closed: ask for a launch (refused politely if
+                // another app is on the wearer's screen; lands on the next sync).
+                if (watchLink.watchappOpen) pushWatchConfig(afterOpen = false)
+                else selfHealLaunch("settings changed")
+            }
             ACTION_USER_CANCEL -> {
                 watchLink.send(mapOf(
                     PebbleTransport.KEY_MSG_TYPE to Protocol.PMSG_USER_OK_REMOTE))
@@ -1063,6 +1100,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
         const val NOTIF_DIAG_ID = 4
         const val CHANNEL_REQUESTS = "requests"
         const val ACTION_USER_CANCEL = "org.cryomonitor.USER_CANCEL"
+        const val ACTION_WATCH_CONFIG_CHANGED = "org.cryomonitor.WATCH_CONFIG_CHANGED"
+        const val ACTION_CONFIG_CHANGED = "org.cryomonitor.CONFIG_ACKED"
         const val ACTION_TEST_ALARM = "org.cryomonitor.TEST_ALARM"
         const val ACTION_ALERT_CANCELLED = "org.cryomonitor.ALERT_CANCELLED"
         const val ACTION_SET_DEBUG = "org.cryomonitor.SET_DEBUG"

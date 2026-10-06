@@ -15,6 +15,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import org.cryomonitor.companion.ui.AdvancedScreen
+import org.cryomonitor.companion.ui.Detector
+import org.cryomonitor.companion.ui.DetectorScreen
+import org.cryomonitor.companion.ui.WhenItAsksScreen
 import org.cryomonitor.companion.ui.CmTheme
 import org.cryomonitor.companion.ui.ContactsScreen
 import org.cryomonitor.companion.ui.EnrollScreen
@@ -32,11 +35,13 @@ import org.cryomonitor.companion.ui.SettingsScreen
 class MainActivity : ComponentActivity() {
 
     private lateinit var settings: SettingsStore
+    private lateinit var watchConfig: WatchConfig
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         settings = SettingsStore(this)
+        watchConfig = WatchConfig(this)
         CmLog.init(this)
         requestPermissionsThenStartService()
         setContent { CmTheme { Nav(intent.getStringExtra(EXTRA_ROUTE) ?: ROUTE_HOME) } }
@@ -77,13 +82,17 @@ class MainActivity : ComponentActivity() {
             }
             composable(ROUTE_SETTINGS) {
                 SettingsScreen(
+                    settings = settings,
+                    cfg = watchConfig,
                     version = version,
                     onBack = { nav.popBackStack() },
-                    onServer = { nav.navigate(ROUTE_SERVER) },
-                    onPebble = { nav.navigate(ROUTE_PEBBLE) },
-                    onPermissions = { nav.navigate(ROUTE_PERMISSIONS) },
+                    onDetector = { d -> nav.navigate("$ROUTE_DETECTOR/${d.name}") },
+                    onWhenItAsks = { nav.navigate(ROUTE_WHEN) },
                     onContacts = { nav.navigate(ROUTE_CONTACTS) },
                     onAdvanced = { nav.navigate(ROUTE_ADVANCED) },
+                    onServer = { nav.navigate(ROUTE_SERVER) },
+                    onPermissions = { nav.navigate(ROUTE_PERMISSIONS) },
+                    onPebble = { nav.navigate(ROUTE_PEBBLE) },
                     onDiagnostics = {
                         startActivity(Intent(this@MainActivity, DebugActivity::class.java))
                     },
@@ -97,6 +106,12 @@ class MainActivity : ComponentActivity() {
             composable(ROUTE_ENROL) { EnrollScreen(settings, onBack = { nav.popBackStack() }) }
             composable(ROUTE_CONTACTS) { ContactsScreen(settings, onBack = { nav.popBackStack() }) }
             composable(ROUTE_PEBBLE) { PebbleScreen(settings, onBack = { nav.popBackStack() }) }
+            composable(ROUTE_WHEN) { WhenItAsksScreen(watchConfig, onBack = { nav.popBackStack() }) }
+            composable("$ROUTE_DETECTOR/{name}") { entry ->
+                val d = entry.arguments?.getString("name")?.let { n ->
+                    Detector.entries.firstOrNull { it.name == n } } ?: Detector.PULSE
+                DetectorScreen(d, watchConfig, onBack = { nav.popBackStack() })
+            }
             composable(ROUTE_PERMISSIONS) { PermissionsScreen(onBack = { nav.popBackStack() }) }
             composable(ROUTE_ADVANCED) { AdvancedScreen(settings, onBack = { nav.popBackStack() }) }
         }
@@ -145,5 +160,7 @@ class MainActivity : ComponentActivity() {
         const val ROUTE_ADVANCED = "settings/advanced"
         const val ROUTE_ENROL = "settings/server/enrol"
         const val ROUTE_CONTACTS = "contacts"
+        const val ROUTE_WHEN = "settings/when"
+        const val ROUTE_DETECTOR = "settings/detector"
     }
 }

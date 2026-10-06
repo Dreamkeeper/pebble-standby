@@ -49,7 +49,7 @@ an Android companion app, and an optional self-hosted server.
 Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
-heartbeat gaps). Current builds: watchapp **0.5.8**, companion
+heartbeat gaps). Current builds: watchapp **0.5.9**, companion
 **0.6.8**, all in [`dist/`](dist/).
 
 What the field testing taught, each with a fix and a test:
@@ -121,7 +121,7 @@ cd server && cp .env.example .env   # set CM_API_TOKEN etc.
 docker compose up -d --build        # API on :8080, ntfy on :8090
 ```
 
-Tests: `watchapp/tests` (host C, gcc/MSVC — 225 checks), `server/tests`
+Tests: `watchapp/tests` (host C, gcc/MSVC — 245 checks), `server/tests`
 (pytest — 87 checks), and `android` JVM unit tests (`gradle test`, 36).
 
 Internal identifiers (Android package `org.cryomonitor.companion`,

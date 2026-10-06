@@ -182,6 +182,15 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       app_worker_send_message(WMSG_SET_QMETRIC, &m);
       break;
     }
+    case PMSG_CONFIG_SET: {
+      Tuple *f = dict_find(iter, MESSAGE_KEY_DETECTOR);
+      Tuple *v = dict_find(iter, MESSAGE_KEY_SECONDS);
+      if (f && v) {
+        AppWorkerMessage m = {.data0 = f->value->uint8, .data1 = v->value->uint16};
+        app_worker_send_message(WMSG_CFG_SET, &m);
+      }
+      break;
+    }
     case PMSG_CONFIG: {
       Tuple *blob = dict_find(iter, MESSAGE_KEY_CFG_BLOB);
       if (blob && blob->length == sizeof(cm_config)) {
@@ -529,6 +538,16 @@ static void worker_message_handler(uint16_t type, AppWorkerMessage *m) {
     persist_delete(PK_PENDING_ACTION); /* we got it live */
     persist_delete(PK_PENDING_ACTION_T);
     handle_action(&a);
+  } else if (type == WMSG_CFG_ACK) {
+    /* The worker answers with the value in force (design D2). */
+    DictionaryIterator *out;
+    if (app_message_outbox_begin(&out) == APP_MSG_OK) {
+      dict_write_uint8(out, MESSAGE_KEY_MSG_TYPE, PMSG_CONFIG_ACK);
+      dict_write_uint8(out, MESSAGE_KEY_DETECTOR, (uint8_t)m->data0);
+      dict_write_uint16(out, MESSAGE_KEY_SECONDS, m->data1);
+      dict_write_uint8(out, MESSAGE_KEY_CANCEL_REASON, (uint8_t)m->data2);
+      app_message_outbox_send();
+    }
   } else if (type == WMSG_HR_SAMPLE) {
     /* Relay the lab sample to the phone and mirror it on the watch. */
     DictionaryIterator *out;

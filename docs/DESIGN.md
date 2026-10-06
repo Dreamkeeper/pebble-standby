@@ -142,12 +142,13 @@ settings icon.
 ```
 Home ──────────── Coverage verdict card, watch card, people card, server card
  ├─ Contacts & safety net
- ├─ Settings
- │    ├─ Server (enrol, change server, re-enrol)
- │    ├─ Pebble app on this phone (auto / patched / store)
- │    ├─ Permissions (battery, lock screen, pop-ups, autostart — with status)
- │    ├─ Advanced (wearer name, emergency number, watch sync, fallback bot, SMS)
- │    └─ Diagnostics  ← the whole debug screen moves here
+ ├─ Settings (state on every row, see §4.5)
+ │    ├─ What Standby watches for: one row per detector, switch + value → detail page
+ │    ├─ When it asks: time to answer, countdowns, night hours
+ │    ├─ Who is alerted: contacts, emergency number
+ │    ├─ Your server (enrol, change, re-enrol)
+ │    ├─ This phone: Let it run (n of 6 granted), Pebble app mode
+ │    └─ More: Advanced (fallback bot, manual server), Diagnostics, Set up again
  └─ (full-screen) Alarm        ← launched by the service, over the lock screen
 (first run) Onboarding → ends on Home showing "Covered"
 ```
@@ -218,13 +219,44 @@ Changes: tier explained in place; channel icons instead of
 "telegram/ntfy/email" words; "Where do I get a chat id?" inline help
 with the bot's reply quoted; delete asks once, as now.
 
-### 4.5 Settings and Diagnostics
+### 4.5 Settings: state on the row, features first
 
-Settings is a plain Material list. Diagnostics is the current debug
-screen moved intact under Settings, with three edits: the soak card at
-the top, drills grouped under "Tests", and logs/bundles under "Share
-with support". Its labels may keep engineering words; it is the one
-place for them. A one-line banner explains it is for testing.
+Reference pattern (Pixel Watch app → Safety & emergency; Apple Watch →
+Emergency SOS / Fall Detection; Garmin Connect → Safety & Tracking): the
+top level lists what the product *watches for*, every row carries its
+current value as the second line, and binary things are switches on the
+row itself. A row never describes itself; it states its state.
+
+```
+What Standby watches for
+  Pulse signal loss       On · asks after 2½ min without signal      [switch]
+  Hard impact             On · asks after 60 s of stillness          [switch]
+  No movement             On · 40 min by day, 90 min at night        [switch]
+  Scheduled check-in      Off                                        [switch]
+  SOS on the watch        Always on
+When it asks
+  Time to answer          30 s          Countdown before the alarm   30 s (impact 20 s)
+  Night hours             23:00 – 07:00
+Who is alerted
+  Contacts & safety net   Anna, Boris · 2 tiers · drill 12 days ago
+  Emergency number        112 · default for Russia
+Your server               cm.example.org · reachable
+This phone
+  Let it run              4 of 6 granted · 2 to check
+  Pebble app              Automatic · patched app, reports every minute
+More
+  Advanced · Diagnostics · Set up again · Standby 0.7.0
+```
+
+Each detector row opens a page with the big switch at the top, a plain
+explanation that includes what it cannot detect (the loose-strap
+ambiguity for pulse signal), then its thresholds as pickers with the
+watch's defaults marked. A changed value shows "pending" until the watch
+confirms it (change watch-settings-sync). Diagnostics is the current
+debug screen moved under More, with the soak card first, drills under
+"Tests" and logs/bundles under "Share with support"; drills and the lab
+unlock with a long-press on the version line. Its labels may keep
+engineering words; it is the one place for them.
 
 ### 4.6 Notifications
 

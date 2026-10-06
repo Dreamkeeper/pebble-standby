@@ -160,4 +160,79 @@
     <string name="enrol_rate_limited">Too many attempts from this network. Wait a while and try again.</string>
     <string name="enrol_unreachable">Cannot reach %1$s (%2$s). Check the address and your connection, including any VPN the server needs.</string>
     <string name="enrol_server_error">Server error %1$d. Check the server logs.</string>
+    <!-- Settings: sections and states (DESIGN §4.5) -->
+    <string name="settings_section_detectors">What Standby watches for</string>
+    <string name="settings_section_when">When it asks</string>
+    <string name="settings_section_who">Who is alerted</string>
+    <string name="settings_section_server">Your server</string>
+    <string name="settings_section_phone">This phone</string>
+    <string name="settings_section_more">More</string>
+    <string name="settings_tiers">%1$d tiers</string>
+    <string name="state_on">On</string>
+    <string name="state_off">Off</string>
+    <string name="state_always_on">Always on</string>
+    <string name="state_pending">pending</string>
+    <string name="state_pending_long">Will reach the watch at its next sync.</string>
+    <string name="server_not_enrolled_short">Not enrolled</string>
+    <string name="emergency_default">%1$s · default for %2$s</string>
+    <string name="emergency_override">%1$s · your choice</string>
+    <string name="perm_summary_granted">%1$d of %2$d granted</string>
+    <string name="perm_summary_missing">%1$d to grant</string>
+    <string name="perm_summary_check">%1$d to check</string>
+    <string name="pebble_mode_auto_explain">Standby works out which Pebble app this phone runs and adapts.</string>
+    <string name="pebble_mode_patched_short">Patched Pebble app</string>
+    <string name="pebble_mode_store_short">Stock Pebble app</string>
+    <string name="pebble_detected_patched">watch reports every minute</string>
+    <string name="pebble_detected_store">hourly sync</string>
+
+    <!-- Detectors -->
+    <string name="det_pulse">Pulse signal loss</string>
+    <string name="det_pulse_what">The optical sensor stops giving a changing pulse reading while you are still. The watch first checks for 45 seconds at full rate, then asks "Are you OK?", then counts down, then your people are alerted.</string>
+    <string name="det_pulse_limits">A loose strap, a cold wrist or the watch lying on a table also stop the signal. That is why the watch asks first instead of alerting at once. It cannot tell you why the signal stopped.</string>
+    <string name="det_pulse_value">asks after %1$s without signal</string>
+    <string name="det_impact">Hard impact</string>
+    <string name="det_impact_what">A fall or a hard knock, followed by no movement for the time below. Only a press of SELECT on the watch, or Cancel on this phone, dismisses it.</string>
+    <string name="det_impact_limits">Dropping the watch on a desk also counts as a knock; because you are not wearing it then, no pulse reading follows and the alert is discarded.</string>
+    <string name="det_impact_value">asks after %1$d s of stillness</string>
+    <string name="det_nonmotion">No movement</string>
+    <string name="det_nonmotion_what">No movement at all for the time below, by day or at night. A steady pulse counts as being alive, so sleeping does not trigger it on watches with a pulse sensor.</string>
+    <string name="det_nonmotion_limits">On watches without a pulse sensor this is the main detector, so set the night time generously.</string>
+    <string name="det_nonmotion_value">%1$d min by day, %2$d min at night</string>
+    <string name="det_checkin">Scheduled check-in</string>
+    <string name="det_checkin_what">The watch asks you to press SELECT at a fixed interval. Movement does not answer it; only the button does.</string>
+    <string name="det_checkin_limits">Off by default. Useful when you prefer a routine over sensors, or on a watch without a pulse sensor.</string>
+    <string name="det_checkin_value">every %1$s</string>
+    <string name="det_notworn">Not worn reminders</string>
+    <string name="det_notworn_what">When the watch sees no pulse signal and no movement, it reminds you to put it on or pause monitoring. Nobody else is alerted.</string>
+    <string name="det_notworn_limits">Also covers the opposite case: movement without any pulse signal, which means a loose strap or a sensor fault.</string>
+    <string name="det_notworn_value">after %1$d min off-wrist</string>
+    <string name="det_sos">SOS on the watch</string>
+    <string name="det_what_header">What it detects</string>
+    <string name="det_limits_header">What it cannot tell</string>
+    <string name="det_knobs_header">Timing</string>
+
+    <!-- Knobs -->
+    <string name="knob_pulse_lost">No signal for</string>
+    <string name="knob_pulse_flat">Frozen reading for</string>
+    <string name="knob_pulse_snooze">Quiet after I say I am OK</string>
+    <string name="knob_impact_still">Stillness after the knock</string>
+    <string name="knob_impact_countdown">Countdown after an impact</string>
+    <string name="knob_nonmotion_day">By day</string>
+    <string name="knob_nonmotion_night">At night</string>
+    <string name="knob_checkin_interval">Every</string>
+    <string name="knob_checkin_grace">Grace after it is due</string>
+    <string name="knob_checkin_remind">Reminder before it is due</string>
+    <string name="knob_notworn_after">Not worn for</string>
+    <string name="knob_sensor_after">Moving without signal for</string>
+    <string name="knob_time_to_answer">Time to answer "Are you OK?"</string>
+    <string name="knob_countdown">Countdown before the alarm</string>
+    <string name="knob_night_start">Night starts</string>
+    <string name="knob_night_end">Night ends</string>
+    <string name="knob_default">Default %1$s</string>
+
+    <!-- When it asks -->
+    <string name="when_title">When it asks</string>
+    <string name="when_intro">Every alert goes "Are you OK?", then a countdown, then the alarm. These set how long each step lasts.</string>
+    <string name="when_night">Night hours</string>
+    <string name="when_night_explain">The no-movement detector waits longer at night.</string>
 </resources>

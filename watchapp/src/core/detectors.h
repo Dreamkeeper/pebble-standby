@@ -271,6 +271,43 @@ void cm_set_lab_hold(cm_core *c, int hold, uint32_t now_ms);
  * until the motor stops + delivery latency + ringing as neither motion
  * nor a shock. Extends an active guard, never shortens it. */
 void cm_vibe_guard(cm_core *c, uint32_t duration_ms, uint32_t now_ms);
+
+/* Settings the phone owns and sends one at a time (change
+ * watch-settings-sync). Ids are the protocol: mirrored by
+ * WatchConfig.Field on Android — change both together. Values are
+ * uint16; booleans 0/1; hours 0-23. */
+typedef enum {
+  CM_CFG_PULSE_ENABLED = 1,
+  CM_CFG_IMPACT_ENABLED = 2,
+  CM_CFG_NONMOTION_ENABLED = 3,
+  CM_CFG_CHECKIN_ENABLED = 4,
+  CM_CFG_NOTWORN_ENABLED = 5,
+  CM_CFG_SENSOR_ENABLED = 6,
+  CM_CFG_PULSE_LOST_AFTER_S = 10,
+  CM_CFG_PULSE_FLAT_AFTER_S = 11,
+  CM_CFG_PULSE_SNOOZE_MIN = 12,
+  CM_CFG_IMPACT_IMMOBILE_S = 20,
+  CM_CFG_NONMOTION_DAY_MIN = 30,
+  CM_CFG_NONMOTION_NIGHT_MIN = 31,
+  CM_CFG_NIGHT_START_HOUR = 32,
+  CM_CFG_NIGHT_END_HOUR = 33,
+  CM_CFG_NOTWORN_AFTER_MIN = 40,
+  CM_CFG_SENSOR_FAULT_AFTER_MIN = 41,
+  CM_CFG_CHECKIN_INTERVAL_MIN = 50,
+  CM_CFG_CHECKIN_GRACE_MIN = 51,
+  CM_CFG_CHECKIN_REMIND_MIN = 52,
+  CM_CFG_CHECKIN_UI_S = 60,
+  CM_CFG_COUNTDOWN_S = 61,
+  CM_CFG_COUNTDOWN_IMPACT_S = 62
+} cm_cfg_field;
+
+/* Apply one setting live. Returns 1 and updates c->cfg when the field is
+ * known and the value inside its range; returns 0 and changes nothing
+ * otherwise (the caller acks with cm_config_get()). Enabling the
+ * scheduled check-in or changing its interval reschedules it from now. */
+int cm_apply_config(cm_core *c, uint16_t field, uint16_t value);
+/* Current value of a field, or 0 for an unknown id. */
+uint16_t cm_config_get(const cm_core *c, uint16_t field);
                                     /* S4 sensor lab: silent detector hold */
 
 /* Output: returns 1 while actions are pending */

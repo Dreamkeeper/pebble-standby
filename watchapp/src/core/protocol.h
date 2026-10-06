@@ -56,6 +56,9 @@ enum {
                              data0 = raw peek bpm, data1 = free heap / 64 B,
                              data2 = seconds since last HR event */
   WMSG_SET_QMETRIC = 13,  /* app->worker: data0 = 0/1 — quality metric OK */
+  WMSG_CFG_SET = 15,      /* app->worker: data0 = cm_cfg_field, data1 = value */
+  WMSG_CFG_ACK = 16,      /* worker->app: data0 = field, data1 = value in force,
+                             data2 = 1 accepted / 0 refused -> PMSG_CONFIG_ACK */
   WMSG_VIBE = 14,         /* app->worker: data0 = motor duration ms; sent
                              BEFORE every vibes_* call so the worker can
                              ignore its own buzz (cm_vibe_guard) */
@@ -106,6 +109,8 @@ enum {
                              liveness on the raw-quality metric (lab data
                              2026-08-29: worn floor = Acceptable; all
                              off-body conditions read OffWrist) */
+  PMSG_CONFIG_SET = 19,   /* phone->watch: DETECTOR = cm_cfg_field id,
+                             SECONDS = value; applied live by the worker */
   PMSG_ALARM_ACK = 18     /* phone->watch: SECONDS = episode id — app-level
                              delivery ACK for PRE_ALARM/ALARM/CANCEL; the
                              watch retries until this arrives (D2) */

@@ -109,6 +109,10 @@ class WatchLink(
         runCatching { pk2Sender.close() }
     }
 
+    /** True between the Pebble app's opened and closed callbacks for our watchapp. */
+    @Volatile var watchappOpen = false
+        private set
+
     fun send(data: Map<Int, Any>) {
         scope.launch {
             // Per-watch result map; null = the phone app has no PK2 at all.
@@ -155,12 +159,14 @@ class WatchLink(
     override fun onPk2Message(data: Map<Int, Any>) = listener.onAppMessage(data)
 
     override fun onPk2AppOpened() {
+        watchappOpen = true
         CmLog.i(TAG, "pk2: watchapp opened")
         listener.onConnectionChanged(true)
         listener.onWatchappOpened()
     }
 
     override fun onPk2AppClosed() {
+        watchappOpen = false
         CmLog.i(TAG, "pk2: watchapp closed (worker keeps monitoring)")
     }
 

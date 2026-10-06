@@ -31,7 +31,10 @@ class WearerWordsAuditTest {
                     mappingKey.containsMatchIn(t)
             }.joinToString("\n")
         return mapOf(
-            "strings.xml" to File(base, "res/values/strings.xml").readText(),
+            // only the texts a wearer can read, not the resource names
+            "strings.xml" to Regex("<string [^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL)
+                .findAll(File(base, "res/values/strings.xml").readText())
+                .joinToString("\n") { it.groupValues[1] },
             "WearerWords.kt" to words,
         )
     }

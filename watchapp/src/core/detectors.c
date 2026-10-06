@@ -1,5 +1,7 @@
 /* Standby (formerly Pebble Cryonics Monitor) — detector core implementation. See detectors.h. */
 #include "detectors.h"
+#include <stddef.h>
+#include <string.h>
 
 #if defined(_MSC_VER)
 #define CM_NOINLINE __declspec(noinline)
@@ -322,6 +324,65 @@ void cm_vibe_guard(cm_core *c, uint32_t duration_ms, uint32_t now_ms) {
   c->now_ms = now_ms;
   uint32_t until = now_ms + duration_ms + CM_VIBE_LATENCY_MS + CM_VIBE_GUARD_MS;
   if ((int32_t)(until - c->vibe_guard_until_ms) > 0) c->vibe_guard_until_ms = until;
+}
+
+/* Field table for the settings sync: where each id lives, as bytes or
+ * halfwords, and its accepted range (design D2 of watch-settings-sync). */
+typedef struct { uint8_t field; uint8_t is_u8; uint16_t off; uint16_t min, max; } cm_cfg_slot;
+#define SLOT8(f, m, lo, hi)  { f, 1, (uint16_t)offsetof(cm_config, m), lo, hi }
+#define SLOT16(f, m, lo, hi) { f, 0, (uint16_t)offsetof(cm_config, m), lo, hi }
+static const cm_cfg_slot k_cfg_slots[] = {
+  SLOT8(CM_CFG_PULSE_ENABLED,     enabled[CM_DET_PULSE],     0, 1),
+  SLOT8(CM_CFG_IMPACT_ENABLED,    enabled[CM_DET_IMPACT],    0, 1),
+  SLOT8(CM_CFG_NONMOTION_ENABLED, enabled[CM_DET_NONMOTION], 0, 1),
+  SLOT8(CM_CFG_CHECKIN_ENABLED,   enabled[CM_DET_CHECKIN],   0, 1),
+  SLOT8(CM_CFG_NOTWORN_ENABLED,   enabled[CM_DET_NOTWORN],   0, 1),
+  SLOT8(CM_CFG_SENSOR_ENABLED,    enabled[CM_DET_SENSOR],    0, 1),
+  SLOT16(CM_CFG_PULSE_LOST_AFTER_S,   pulse_lost_after_s,   60, 600),
+  SLOT16(CM_CFG_PULSE_FLAT_AFTER_S,   pulse_flat_after_s,  120, 900),
+  SLOT16(CM_CFG_PULSE_SNOOZE_MIN,     pulse_snooze_min,      1, 120),
+  SLOT16(CM_CFG_IMPACT_IMMOBILE_S,    impact_immobile_s,    30, 300),
+  SLOT16(CM_CFG_NONMOTION_DAY_MIN,    nonmotion_day_min,    10, 240),
+  SLOT16(CM_CFG_NONMOTION_NIGHT_MIN,  nonmotion_night_min,  10, 480),
+  SLOT8(CM_CFG_NIGHT_START_HOUR,  night_start_hour, 0, 23),
+  SLOT8(CM_CFG_NIGHT_END_HOUR,    night_end_hour,   0, 23),
+  SLOT16(CM_CFG_NOTWORN_AFTER_MIN,    notworn_after_min,      1, 60),
+  SLOT16(CM_CFG_SENSOR_FAULT_AFTER_MIN, sensor_fault_after_min, 1, 60),
+  SLOT16(CM_CFG_CHECKIN_INTERVAL_MIN, checkin_interval_min, 30, 1440),
+  SLOT16(CM_CFG_CHECKIN_GRACE_MIN,    checkin_grace_min,     1, 60),
+  SLOT16(CM_CFG_CHECKIN_REMIND_MIN,   checkin_remind_min,    0, 30),
+  SLOT16(CM_CFG_CHECKIN_UI_S,         checkin_ui_s,         10, 120),
+  SLOT16(CM_CFG_COUNTDOWN_S,          countdown_s,          10, 120),
+  SLOT16(CM_CFG_COUNTDOWN_IMPACT_S,   countdown_impact_s,   10, 60),
+};
+
+static const cm_cfg_slot *cfg_slot(uint16_t field) {
+  for (unsigned i = 0; i < sizeof(k_cfg_slots) / sizeof(k_cfg_slots[0]); i++)
+    if (k_cfg_slots[i].field == field) return &k_cfg_slots[i];
+  return 0;
+}
+
+uint16_t cm_config_get(const cm_core *c, uint16_t field) {
+  const cm_cfg_slot *s = cfg_slot(field);
+  if (!s) return 0;
+  const uint8_t *p = (const uint8_t *)&c->cfg + s->off;
+  if (s->is_u8) return *p;
+  uint16_t v; memcpy(&v, p, sizeof(v)); return v;
+}
+
+int cm_apply_config(cm_core *c, uint16_t field, uint16_t value) {
+  const cm_cfg_slot *s = cfg_slot(field);
+  if (!s || value < s->min || value > s->max) return 0;
+  uint8_t *p = (uint8_t *)&c->cfg + s->off;
+  uint16_t before = cm_config_get(c, field);
+  if (s->is_u8) *p = (uint8_t)value; else memcpy(p, &value, sizeof(value));
+  /* Side effects (design D3): a check-in switched on, or its interval
+   * changed, is due <interval> from now, not from an old epoch. */
+  if ((field == CM_CFG_CHECKIN_ENABLED && value && !before) ||
+      (field == CM_CFG_CHECKIN_INTERVAL_MIN && value != before)) {
+    if (c->cfg.enabled[CM_DET_CHECKIN]) schedule_next_checkin(c);
+  }
+  return 1;
 }
 
 void cm_hr_feed(cm_core *c, uint16_t bpm, uint32_t now_ms) {

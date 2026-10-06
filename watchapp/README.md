@@ -42,7 +42,7 @@ On the charger monitoring holds automatically.
 | `src/core/protocol.h` | message ids, persist keys, the 16-byte heartbeat record |
 | `worker_src/c/worker.c` | background worker: sensors → core → actions; DataLogging heartbeat every minute; launches the app for alerts |
 | `src/c/main.c` | foreground app: alert ladder UI, acknowledged delivery to the phone, suspension menu |
-| `tests/test_detectors.c` | host tests for the core (225 checks) |
+| `tests/test_detectors.c` | host tests for the core (245 checks) |
 
 The worker's code, data, stack and heap share about 10.5 KB, so its
 binary size is a budget: verbose logging compiles out by default

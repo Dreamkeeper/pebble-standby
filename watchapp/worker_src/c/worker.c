@@ -538,6 +538,16 @@ static void worker_message_handler(uint16_t type, AppWorkerMessage *m) {
       WLOG("worker debug %s", s_debug ? "ON" : "off");
       break;
     case WMSG_VIBE: cm_vibe_guard(&s_core, m->data0, mono_ms()); break;
+    case WMSG_CFG_SET: {
+      int ok = cm_apply_config(&s_core, m->data0, m->data1);
+      if (ok) persist_write_data(PK_CONFIG, &s_core.cfg, sizeof(s_core.cfg));
+      AppWorkerMessage ack = {.data0 = m->data0,
+                              .data1 = cm_config_get(&s_core, m->data0),
+                              .data2 = (uint16_t)ok};
+      app_worker_send_message(WMSG_CFG_ACK, &ack);
+      WLOG("cfg %u=%u %s", m->data0, m->data1, ok ? "ok" : "refused");
+      break;
+    }
     case WMSG_SET_QMETRIC:
       s_qmetric = (uint8_t)m->data0;
       persist_write_int(PK_QMETRIC, s_qmetric);

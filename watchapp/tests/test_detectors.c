@@ -276,6 +276,44 @@ static void test_impact_checkin_needs_button(void) {
   CHECK(cm_current_stage(&core) == CM_STAGE_NONE);
 }
 
+/* Settings sync (watch-settings-sync): accept in range, refuse out of
+ * range or unknown, echo the value in force, reschedule the check-in. */
+static void test_apply_config(void) {
+  g_test = "apply_config";
+  cm_config cfg = test_cfg();
+  setup(&cfg);
+  warmup();
+
+  CHECK(cm_config_get(&core, CM_CFG_NONMOTION_DAY_MIN) == 40);
+  CHECK(cm_apply_config(&core, CM_CFG_NONMOTION_DAY_MIN, 60) == 1);
+  CHECK(core.cfg.nonmotion_day_min == 60);
+  CHECK(cm_apply_config(&core, CM_CFG_NONMOTION_DAY_MIN, 5) == 0);   /* below range */
+  CHECK(core.cfg.nonmotion_day_min == 60);                           /* unchanged */
+  CHECK(cm_apply_config(&core, 200, 1) == 0);                        /* unknown id */
+  CHECK(cm_config_get(&core, 200) == 0);
+
+  /* detector switch */
+  CHECK(core.cfg.enabled[CM_DET_NONMOTION] == 1);
+  CHECK(cm_apply_config(&core, CM_CFG_NONMOTION_ENABLED, 0) == 1);
+  CHECK(core.cfg.enabled[CM_DET_NONMOTION] == 0);
+  CHECK(cm_apply_config(&core, CM_CFG_NONMOTION_ENABLED, 2) == 0);
+
+  /* enabling the check-in schedules it <interval> from now */
+  CHECK(core.cfg.enabled[CM_DET_CHECKIN] == 0);
+  CHECK(cm_apply_config(&core, CM_CFG_CHECKIN_INTERVAL_MIN, 60) == 1);
+  CHECK(cm_apply_config(&core, CM_CFG_CHECKIN_ENABLED, 1) == 1);
+  uint32_t due = cm_checkin_due_in_s(&core, now_ms);
+  CHECK(due > 3590 && due <= 3600);
+  CHECK(cm_apply_config(&core, CM_CFG_CHECKIN_INTERVAL_MIN, 120) == 1);
+  due = cm_checkin_due_in_s(&core, now_ms);
+  CHECK(due > 7190 && due <= 7200);
+
+  /* ladder timing */
+  CHECK(cm_apply_config(&core, CM_CFG_CHECKIN_UI_S, 5) == 0);
+  CHECK(cm_apply_config(&core, CM_CFG_CHECKIN_UI_S, 45) == 1);
+  CHECK(cm_config_get(&core, CM_CFG_CHECKIN_UI_S) == 45);
+}
+
 /* one second holding a single high-G sample: a shock if unguarded */
 static void sec_shock(void) {
   now_ms += 1000;
@@ -1269,6 +1307,7 @@ int main(void) {
   test_impact_full_ladder();
   test_impact_cancelled_by_motion();
   test_impact_checkin_needs_button();
+  test_apply_config();
   test_announced_buzz_is_neither_motion_nor_shock();
   test_alarm_window_shock_is_not_a_fall();
   test_pulse_loss_full_ladder();
