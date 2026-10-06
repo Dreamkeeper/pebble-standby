@@ -36,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,14 +49,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.cryomonitor.companion.EmergencyNumber
 import org.cryomonitor.companion.Escalator
 import org.cryomonitor.companion.LiveState
 import org.cryomonitor.companion.MonitorService
+import org.cryomonitor.companion.PermissionChecks
 import org.cryomonitor.companion.R
 import org.cryomonitor.companion.ServerClient
 import org.cryomonitor.companion.SettingsStore
+import org.cryomonitor.companion.SoakStats
 import org.cryomonitor.companion.WatchConfig
 
 /** Shared scaffold with a back arrow. */
@@ -285,30 +289,83 @@ fun PermissionsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val tick = onResumeTick()
     val caution = CmColors.caution
+    // A running test flips to its verdict within 20 s; tick the clock so
+    // the rows follow without the wearer leaving and coming back.
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(2_000); now = System.currentTimeMillis() } }
+    var dialog by remember { mutableStateOf<Permissions.Check?>(null) }
+    val rows = remember(tick, now) { Permissions.rows(context, now) }
+
     SubScreen(stringResource(R.string.perm_title), onBack) {
         Text(stringResource(R.string.perm_intro), style = MaterialTheme.typography.bodyMedium,
              color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
-        androidx.compose.runtime.key(tick) {
-            Permissions.rows(context).forEach { row ->
-                ListItem(
-                    headlineContent = { Text(stringResource(row.title)) },
-                    supportingContent = { Text(stringResource(row.sub)) },
-                    trailingContent = {
-                        when (row.state) {
-                            Permissions.State.GRANTED -> Text(stringResource(R.string.perm_granted),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelLarge)
-                            Permissions.State.MISSING -> Text(stringResource(R.string.perm_missing),
-                                color = caution.caution, style = MaterialTheme.typography.labelLarge)
-                            Permissions.State.UNKNOWN -> Text(stringResource(R.string.perm_unknown),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelLarge)
+        rows.forEach { row ->
+            ListItem(
+                headlineContent = { Text(stringResource(row.title)) },
+                supportingContent = { Text(row.sub) },
+                trailingContent = {
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                        val (label, colour) = when (row.state) {
+                            Permissions.State.GRANTED -> R.string.perm_granted to MaterialTheme.colorScheme.primary
+                            Permissions.State.MISSING -> R.string.perm_missing to caution.caution
+                            Permissions.State.TESTING -> R.string.perm_testing to MaterialTheme.colorScheme.onSurfaceVariant
+                            Permissions.State.WAITING -> R.string.perm_waiting to MaterialTheme.colorScheme.onSurfaceVariant
+                            Permissions.State.UNKNOWN -> R.string.perm_unknown to MaterialTheme.colorScheme.onSurfaceVariant
                         }
-                    },
-                    modifier = Modifier.clickable { Permissions.openFirst(context, row.open) },
-                )
+                        Text(stringResource(label), color = colour, style = MaterialTheme.typography.labelLarge)
+                        if (row.check != null && row.state != Permissions.State.TESTING)
+                            TextButton(onClick = { dialog = row.check },
+                                       contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                                Text(stringResource(if (row.check == Permissions.Check.REBOOT) R.string.perm_check else R.string.perm_test))
+                            }
+                    }
+                },
+                modifier = Modifier.clickable { Permissions.openFirst(context, row.open) },
+            )
+        }
+    }
+
+    dialog?.let { check ->
+        val (title, body) = when (check) {
+            Permissions.Check.POPUP -> R.string.perm_popup_dialog_title to R.string.perm_popup_dialog_body
+            Permissions.Check.LOCK -> R.string.perm_lock_dialog_title to R.string.perm_lock_dialog_body
+            Permissions.Check.REBOOT -> R.string.perm_boot_dialog_title to R.string.perm_boot_dialog_body
+        }
+        AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text(stringResource(title)) },
+            text = { Text(stringResource(body)) },
+            confirmButton = {
+                TextButton(onClick = { dialog = null; startPermissionCheck(context, check); now = System.currentTimeMillis() }) {
+                    Text(stringResource(R.string.perm_start))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+}
+
+/** Performs the real action behind a "Let it run" row (PermissionChecks). */
+private fun startPermissionCheck(context: Context, check: Permissions.Check) {
+    when (check) {
+        Permissions.Check.POPUP, Permissions.Check.LOCK -> {
+            val kind = if (check == Permissions.Check.POPUP) PermissionChecks.Kind.POPUP
+                       else PermissionChecks.Kind.LOCK
+            // Mark the attempt now so the row reads "Testing…" at once; the
+            // service re-marks it at the real launch moment.
+            PermissionChecks(context).noteAttempt(kind)
+            context.startService(Intent(context, MonitorService::class.java)
+                .setAction(MonitorService.ACTION_PERMISSION_TEST)
+                .putExtra("kind", kind.name))
+            if (kind == PermissionChecks.Kind.POPUP) runCatching {
+                context.startActivity(Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
+        Permissions.Check.REBOOT ->
+            SoakStats(context).set(SoakStats.REBOOT_ARMED_AT, System.currentTimeMillis())
     }
 }
 

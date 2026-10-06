@@ -65,11 +65,11 @@
 
     <!-- Permissions -->
     <string name="perm_title">Let it run</string>
-    <string name="perm_intro">These let Standby keep watch in the background and show the alarm over the lock screen. Each row opens the exact system page; come back and it turns green.</string>
+    <string name="perm_intro">These let Standby keep watch in the background and show the alarm over the lock screen. Each row states where it stands and opens the exact system page. Test performs the real action, so you see for yourself.</string>
     <string name="perm_battery">Run without battery limits</string>
     <string name="perm_battery_sub">Battery optimisation exemption</string>
     <string name="perm_fullscreen">Show the alarm over the lock screen</string>
-    <string name="perm_fullscreen_sub">Full-screen alarm permission</string>
+    <string name="perm_fullscreen_sub">Full-screen alarm permission is off</string>
     <string name="perm_popup">Pop-up windows in the background</string>
     <string name="perm_popup_sub">Xiaomi / HyperOS: needed for the alarm screen</string>
     <string name="perm_autostart">Start after reboot</string>
@@ -80,7 +80,38 @@
     <string name="perm_notifications_sub">Status, attention and alarm notifications</string>
     <string name="perm_granted">Granted</string>
     <string name="perm_missing">Open settings</string>
-    <string name="perm_unknown">Check manually</string>
+    <string name="perm_unknown">Not tested</string>
+    <string name="perm_testing">Testing…</string>
+    <string name="perm_waiting">Waiting</string>
+    <string name="perm_test">Test</string>
+    <string name="perm_check">Check</string>
+    <string name="perm_start">Start</string>
+    <string name="perm_allowed_untested">Allowed · not tested yet</string>
+    <string name="perm_not_tested">Not tested yet</string>
+    <string name="perm_hyperos_off">Switched off in the HyperOS permissions</string>
+    <string name="perm_popup_passed">Appeared from the background · tested %1$s</string>
+    <string name="perm_popup_failed">Did not appear from the background · tested %1$s</string>
+    <string name="perm_popup_testing">Leave Standby; the test screen should appear within 15 seconds</string>
+    <string name="perm_lock_passed">Appeared over the lock screen · tested %1$s</string>
+    <string name="perm_lock_failed">Did not appear over the lock screen · tested %1$s</string>
+    <string name="perm_lock_testing">Lock the phone now; the test screen should appear within 15 seconds</string>
+    <string name="perm_lock_inconclusive">The phone was not locked during the test. Try again.</string>
+    <string name="perm_boot_started">Started %1$d s after the last restart · %2$s</string>
+    <string name="perm_boot_started_unknown_delay">Started after the last restart · %1$s</string>
+    <string name="perm_boot_failed">The phone restarted %1$s and Standby did not start</string>
+    <string name="perm_boot_waiting">Restart the phone to finish the check</string>
+    <string name="perm_boot_not_yet">No restart since Standby was installed</string>
+    <string name="perm_popup_dialog_title">Test pop-up windows</string>
+    <string name="perm_popup_dialog_body">Standby will go to the home screen and, about 15 seconds later, try to open its test screen from the background, the way an alarm would. If the screen appears, the permission is on. No sound, nobody is alerted.</string>
+    <string name="perm_lock_dialog_title">Test the lock screen</string>
+    <string name="perm_lock_dialog_body">After Start, lock the phone with the power button. About 15 seconds later Standby will try to show its test screen over the lock screen, the way an alarm would. Unlock afterwards and come back for the result. No sound, nobody is alerted.</string>
+    <string name="perm_boot_dialog_title">Check the restart</string>
+    <string name="perm_boot_dialog_body">Restart the phone. When it is back, open Standby: this row will say whether Standby started on its own.</string>
+    <string name="perm_test_screen_title">Test passed</string>
+    <string name="perm_test_screen_body">This is where an alarm would appear. Nothing happened and nobody was alerted.</string>
+    <string name="perm_test_screen_back">Back to Standby</string>
+    <string name="perm_test_notif_title">Standby test</string>
+    <string name="perm_test_notif_text">Making sure the alarm screen can appear over the lock screen.</string>
 
     <!-- Advanced -->
     <string name="adv_title">Advanced</string>
@@ -178,7 +209,7 @@
     <string name="emergency_override">%1$s · your choice</string>
     <string name="perm_summary_granted">%1$d of %2$d granted</string>
     <string name="perm_summary_missing">%1$d to grant</string>
-    <string name="perm_summary_check">%1$d to check</string>
+    <string name="perm_summary_check">%1$d not tested</string>
     <string name="pebble_mode_auto_explain">Standby works out which Pebble app this phone runs and adapts.</string>
     <string name="pebble_mode_patched_short">Patched Pebble app</string>
     <string name="pebble_mode_store_short">Stock Pebble app</string>

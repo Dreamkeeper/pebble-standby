@@ -19,12 +19,14 @@ class BootReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED -> "update"
             else -> return
         }
+        // Recorded before the configured check: the firing itself is the
+        // evidence the "Start after reboot" row shows (PermissionChecks).
+        SoakStats(context).noteBootReceiverFired(reason)
         val s = SettingsStore(context)
         val configured = s.serverUrl.isNotEmpty() ||
             s.smsContacts.isNotEmpty() || s.telegramChatIds.isNotEmpty()
         if (!configured) return
         CmLog.init(context)
-        SoakStats(context).noteBootReceiverFired(reason)
         // connectedDevice/specialUse FGS types may be started from
         // BOOT_COMPLETED on Android 14/15 (unlike e.g. dataSync); the
         // service's own typed-fallback chain handles the rest.

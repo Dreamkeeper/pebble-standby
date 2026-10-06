@@ -510,6 +510,37 @@ class MonitorService : Service(), PebbleTransport.Listener {
         getSystemService(NotificationManager::class.java).cancel(NOTIF_ALARM_ID)
     }
 
+    /**
+     * "Let it run" self-test (PermissionChecks): launch the neutral test
+     * screen exactly the way the alarm screen is launched. POPUP uses the
+     * plain background start the HyperOS "pop-up windows" permission
+     * governs; LOCK uses the full-screen-intent notification path, so the
+     * system itself puts the screen over the lock screen — or does not.
+     */
+    private fun runPermissionTest(kind: PermissionChecks.Kind) {
+        CmLog.i(TAG, "permission self-test $kind: launching the test screen from the background")
+        PermissionChecks(this).noteAttempt(kind)
+        val launch = PermissionTestActivity.intent(this, kind)
+        if (kind == PermissionChecks.Kind.LOCK) {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(NotificationChannel(
+                CHANNEL_ALARM, getString(R.string.notif_channel_alarms), NotificationManager.IMPORTANCE_HIGH))
+            val pi = PendingIntent.getActivity(this, 1, launch,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            nm.notify(NOTIF_PERM_TEST_ID, Notification.Builder(this, CHANNEL_ALARM)
+                .setContentTitle(getString(R.string.perm_test_notif_title))
+                .setContentText(getString(R.string.perm_test_notif_text))
+                .setSmallIcon(android.R.drawable.stat_notify_more)
+                .setCategory(Notification.CATEGORY_ALARM)
+                .setFullScreenIntent(pi, true)
+                .setAutoCancel(true)
+                .setTimeoutAfter(PermissionChecks.TEST_TIMEOUT_MS)
+                .build())
+        }
+        runCatching { startActivity(launch) }
+            .onFailure { CmLog.w(TAG, "test screen launch refused: $it") }
+    }
+
     private fun startSiren() {
         if (sirenOn) return
         sirenOn = true
@@ -767,6 +798,15 @@ class MonitorService : Service(), PebbleTransport.Listener {
             ACTION_TEST_ALARM -> {
                 CmLog.i(TAG, "fire-drill TEST alarm requested")
                 scope.launch { escalate("test", isTest = true) }
+            }
+            ACTION_PERMISSION_TEST -> {
+                val kind = runCatching {
+                    PermissionChecks.Kind.valueOf(intent.getStringExtra("kind") ?: "")
+                }.getOrDefault(PermissionChecks.Kind.POPUP)
+                scope.launch {
+                    delay(PermissionChecks.TEST_DELAY_MS)
+                    runPermissionTest(kind)
+                }
             }
             ACTION_HEARTBEAT_TICK -> onHeartbeatTick()
             ACTION_HEARTBEAT_NOW -> scope.launch {
@@ -1098,11 +1138,13 @@ class MonitorService : Service(), PebbleTransport.Listener {
         const val NOTIF_FAULT_ID = 2
         const val NOTIF_ALARM_ID = 3
         const val NOTIF_DIAG_ID = 4
+        const val NOTIF_PERM_TEST_ID = 5
         const val CHANNEL_REQUESTS = "requests"
         const val ACTION_USER_CANCEL = "org.cryomonitor.USER_CANCEL"
         const val ACTION_WATCH_CONFIG_CHANGED = "org.cryomonitor.WATCH_CONFIG_CHANGED"
         const val ACTION_CONFIG_CHANGED = "org.cryomonitor.CONFIG_ACKED"
         const val ACTION_TEST_ALARM = "org.cryomonitor.TEST_ALARM"
+        const val ACTION_PERMISSION_TEST = "org.cryomonitor.PERMISSION_TEST"
         const val ACTION_ALERT_CANCELLED = "org.cryomonitor.ALERT_CANCELLED"
         const val ACTION_SET_DEBUG = "org.cryomonitor.SET_DEBUG"
         const val ACTION_SET_QMETRIC = "org.cryomonitor.SET_QMETRIC"

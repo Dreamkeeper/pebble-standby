@@ -204,8 +204,13 @@ skipping does not break the chain:
    diagram line ("Tier 1 is told first; Tier 2 if nobody acknowledges
    in 10 min").
 5. **Let it run.** Permissions with live status: battery exemption, show
-   over lock screen, pop-ups in background (HyperOS), autostart. Each
-   row opens the exact system page and comes back green.
+   over lock screen, pop-ups in background (HyperOS), start after
+   reboot. Each row opens the exact system page and comes back green.
+   Rows Android cannot answer are never "check manually": a Test button
+   performs the real action (the service launches a neutral test screen
+   from the background, or over the lock screen, the way an alarm would)
+   and the row then states what happened and when. "Start after reboot"
+   reads the evidence of the last restart; Check arms the next one.
 6. **Prove it.** Fire drill; the screen waits for the contact's
    acknowledgement and shows it arriving. End state: Home, "Covered".
 
@@ -242,7 +247,7 @@ Who is alerted
   Emergency number        112 · default for Russia
 Your server               cm.example.org · reachable
 This phone
-  Let it run              4 of 6 granted · 2 to check
+  Let it run              4 of 6 granted · 1 to grant · 1 not tested
   Pebble app              Automatic · patched app, reports every minute
 More
   Advanced · Diagnostics · Set up again · Standby 0.7.0

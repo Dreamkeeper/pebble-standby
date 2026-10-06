@@ -64,6 +64,15 @@
             android:turnScreenOn="true"
             android:launchMode="singleInstance" />
 
+        <!-- "Let it run" self-test: launched from the background the way
+             the alarm is, to prove the HyperOS permissions are on. -->
+        <activity
+            android:name=".PermissionTestActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true" />
+
         <activity
             android:name=".LogActivity"
             android:exported="false" />

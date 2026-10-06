@@ -67,6 +67,7 @@ class SoakStats(context: Context) {
     fun noteBootReceiverFired(reason: String) {
         set(RECEIVER_FIRED_AT, System.currentTimeMillis())
         set(RECEIVER_WAS_BOOT, if (reason == "boot") 1 else 0)
+        if (reason == "boot") set(BOOT_RECEIVER_AT, System.currentTimeMillis())
     }
 
     /** Called once from MonitorService.onCreate. A create within 30 s of
@@ -90,7 +91,7 @@ class SoakStats(context: Context) {
      *  the drills FIRST, then resets for a clean soak window — the PASS
      *  evidence must survive into the week's report. */
     fun reset() {
-        val keep = listOf(RECEIVER_FIRED_AT, RECEIVER_WAS_BOOT,
+        val keep = listOf(RECEIVER_FIRED_AT, RECEIVER_WAS_BOOT, BOOT_RECEIVER_AT,
             BOOT_RECOVERY_AT, BOOT_RECOVERY_DELAY_S, REBOOT_ARMED_AT,
             OUTAGE_AT, OUTAGE_DETECT_S, OUTAGE_RECONNECT_S)
             .associateWith { get(it) }
@@ -122,6 +123,8 @@ class SoakStats(context: Context) {
         const val LAST_RECONNECT_AT = "last_reconnect_at"
         const val RECEIVER_FIRED_AT = "receiver_fired_at"
         const val RECEIVER_WAS_BOOT = "receiver_was_boot"
+        /** Last BOOT_COMPLETED the receiver saw (never overwritten by an update). */
+        const val BOOT_RECEIVER_AT = "boot_receiver_at"
         const val BOOT_RECOVERY_AT = "boot_recovery_at"
         const val BOOT_RECOVERY_DELAY_S = "boot_recovery_delay_s"
         const val REBOOT_ARMED_AT = "reboot_armed_at"
