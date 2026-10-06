@@ -301,7 +301,7 @@ the diagnostics data. Package name and identifiers stay.
 
 ---
 
-## 10. Decisions for the owner
+## 10. Decisions for the owner (all five accepted 2026-10-06)
 
 1. **Emergency number default.** Today it is a manual field. Proposal:
    default from the SIM country (112 / 911 / 999 / 000) with an override
