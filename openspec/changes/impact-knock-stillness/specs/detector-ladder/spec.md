@@ -28,6 +28,29 @@ discarded silently: the watch is not on a readable wrist (a set-down on
 a desk registers as a shock, field 2026-09-09) and the pulse ladder and
 not-worn nag own what follows.
 
+#### Scenario: Fall followed by immobility alarms with the fast fuse
+- **WHEN** freefall→impact is detected and no motion occurs through the
+  settle + immobility window
+- **AND** the wearer's readings continue through that window
+- **THEN** CHECKIN starts with detector IMPACT
+- **AND** the COUNTDOWN uses the impact fuse (20 s)
+
+#### Scenario: Getting up after a fall stays silent
+- **WHEN** freefall→impact is detected
+- **AND** motion occurs after the settle window
+- **THEN** the candidate is discarded with no user-visible alert
+
+#### Scenario: Setting the watch down is not a fall
+- **WHEN** a shock is detected and no valid reading arrives through the
+  settle + immobility window
+- **THEN** no CHECKIN starts and no alarm fires
+
+#### Scenario: The alarm clock is not a fall
+- **WHEN** the next enabled alarm is due within 15 s
+- **AND** high-G samples arrive while it rings and the wearer then lies
+  still for the immobility window
+- **THEN** no CHECKIN starts
+
 #### Scenario: A knock followed by a quiet minute stays silent
 - **WHEN** a bare shock is followed by 66 s of stillness while worn
 - **THEN** no check-in starts; it starts only once shock_immobile_s has
