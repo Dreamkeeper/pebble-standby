@@ -357,7 +357,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
      *  D5): every field until the first ack, then only the pending ones.
      *  150 ms apart so the watch's inbox keeps up. */
     private fun pushWatchConfig(afterOpen: Boolean) {
-        val batch = watchConfig.toSend()
+        val batch = watchConfig.toSend(afterOpen)
         if (batch.isEmpty()) return
         scope.launch {
             if (afterOpen) delay(1_200) // the watchapp's inbox registers after launch

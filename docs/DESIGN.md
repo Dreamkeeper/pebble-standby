@@ -235,7 +235,7 @@ row itself. A row never describes itself; it states its state.
 ```
 What Standby watches for
   Pulse signal loss       On · asks after 2½ min without signal      [switch]
-  Hard impact             On · asks after 60 s of stillness          [switch]
+  Hard impact             On · asks after 60 s of stillness, 120 s after a knock  [switch]
   No movement             On · 40 min by day, 90 min at night        [switch]
   Scheduled check-in      Off                                        [switch]
   SOS on the watch        Always on

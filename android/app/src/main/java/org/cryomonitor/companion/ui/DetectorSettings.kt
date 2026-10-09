@@ -47,6 +47,7 @@ enum class Detector(
                Knob(Field.PULSE_SNOOZE_MIN, R.string.knob_pulse_snooze, Unit.MINUTES, 5))),
     IMPACT(Field.IMPACT_ENABLED, R.string.det_impact, R.string.det_impact_what, R.string.det_impact_limits,
         listOf(Knob(Field.IMPACT_IMMOBILE_S, R.string.knob_impact_still, Unit.SECONDS, 10),
+               Knob(Field.SHOCK_IMMOBILE_S, R.string.knob_shock_still, Unit.SECONDS, 10),
                Knob(Field.COUNTDOWN_IMPACT_S, R.string.knob_impact_countdown, Unit.SECONDS, 5))),
     NONMOTION(Field.NONMOTION_ENABLED, R.string.det_nonmotion, R.string.det_nonmotion_what, R.string.det_nonmotion_limits,
         listOf(Knob(Field.NONMOTION_DAY_MIN, R.string.knob_nonmotion_day, Unit.MINUTES, 10),
@@ -70,7 +71,7 @@ fun detectorValueLine(d: Detector, cfg: WatchConfig): String {
     val on = stringResource(R.string.state_on)
     val detail = when (d) {
         Detector.PULSE -> stringResource(R.string.det_pulse_value, humanDuration(cfg.get(Field.PULSE_LOST_AFTER_S)))
-        Detector.IMPACT -> stringResource(R.string.det_impact_value, cfg.get(Field.IMPACT_IMMOBILE_S))
+        Detector.IMPACT -> stringResource(R.string.det_impact_value, cfg.get(Field.IMPACT_IMMOBILE_S), cfg.get(Field.SHOCK_IMMOBILE_S))
         Detector.NONMOTION -> stringResource(R.string.det_nonmotion_value,
             cfg.get(Field.NONMOTION_DAY_MIN), cfg.get(Field.NONMOTION_NIGHT_MIN))
         Detector.CHECKIN -> stringResource(R.string.det_checkin_value, humanMinutes(cfg.get(Field.CHECKIN_INTERVAL_MIN)))

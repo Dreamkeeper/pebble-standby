@@ -63,6 +63,7 @@ void cm_config_defaults(cm_config *cfg) {
   cfg->crash_above_mg = 3800;
   cfg->impact_settle_s = 5;
   cfg->impact_immobile_s = 60;
+  cfg->shock_immobile_s = 120;
 
   cfg->nonmotion_day_min = 40;
   cfg->nonmotion_night_min = 90;
@@ -304,9 +305,11 @@ void cm_accel_feed(cm_core *c, const cm_accel_sample *s, uint32_t n, uint32_t no
       } else if (c->impact_phase == 1 && mag > c->cfg.impact_above_mg &&
                  elapsed(now_ms, c->freefall_ms) <= c->cfg.freefall_window_ms) {
         c->impact_phase = 2;               /* freefall -> impact */
+        c->impact_bare = 0;
         c->impact_ms = now_ms;
       } else if (mag > c->cfg.crash_above_mg) {
         c->impact_phase = 2;               /* single high-G shock */
+        c->impact_bare = 1;
         c->impact_ms = now_ms;
       } else if (c->impact_phase == 1 &&
                  elapsed(now_ms, c->freefall_ms) > c->cfg.freefall_window_ms) {
@@ -342,6 +345,7 @@ static const cm_cfg_slot k_cfg_slots[] = {
   SLOT16(CM_CFG_PULSE_FLAT_AFTER_S,   pulse_flat_after_s,  120, 900),
   SLOT16(CM_CFG_PULSE_SNOOZE_MIN,     pulse_snooze_min,      1, 120),
   SLOT16(CM_CFG_IMPACT_IMMOBILE_S,    impact_immobile_s,    30, 300),
+  SLOT16(CM_CFG_SHOCK_IMMOBILE_S,     shock_immobile_s,     30, 600),
   SLOT16(CM_CFG_NONMOTION_DAY_MIN,    nonmotion_day_min,    10, 240),
   SLOT16(CM_CFG_NONMOTION_NIGHT_MIN,  nonmotion_night_min,  10, 480),
   SLOT8(CM_CFG_NIGHT_START_HOUR,  night_start_hour, 0, 23),
@@ -567,7 +571,13 @@ static void tick_impact(cm_core *c) {
     c->impact_phase = 0; /* deliberate motion after settle: silent cancel */
     return;
   }
-  if (elapsed(c->now_ms, settle_end) >= (uint32_t)c->cfg.impact_immobile_s * 1000u) {
+  /* A bare shock with no freefall before it is usually a knock (a hand
+   * slapped on a desk, a door, a set-down): every false impact in the
+   * field came this way (2026-09-09, 2026-09-30, 2026-10-09), never from
+   * the freefall signature. A knock is followed by a quiet minute far
+   * more often than a fall is, so it waits longer for the stillness. */
+  uint16_t immobile_s = c->impact_bare ? c->cfg.shock_immobile_s : c->cfg.impact_immobile_s;
+  if (elapsed(c->now_ms, settle_end) >= (uint32_t)immobile_s * 1000u) {
     c->impact_phase = 0;
     /* Not one valid reading since the shock (HR hardware, previously
      * worn): the watch is off the wrist — a set-down on a desk registers

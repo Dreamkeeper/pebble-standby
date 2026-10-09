@@ -133,6 +133,7 @@ typedef struct {
   uint16_t crash_above_mg;        /* single-shock threshold, no freefall needed (default 3800) */
   uint16_t impact_settle_s;       /* post-impact bounce ignored (default 5) */
   uint16_t impact_immobile_s;     /* stillness required before alerting (default 60) */
+  uint16_t shock_immobile_s;      /* same, after a bare shock with no freefall (default 120) */
 
   /* Non-motion */
   uint16_t nonmotion_day_min;     /* default 40 */
@@ -238,6 +239,7 @@ typedef struct {
   uint8_t  motion_win_secs;      /* motion-seconds seen in the current window */
   uint8_t  pulse_snoozed;
   uint8_t  impact_phase;         /* 0 none, 1 freefall seen, 2 awaiting immobility */
+  uint8_t  impact_bare;          /* phase 2 came from a bare shock, not freefall+impact */
   uint8_t  stage;                /* cm_stage */
   uint8_t  stage_det;            /* cm_detector */
   uint8_t  checkin_reminded;
@@ -287,6 +289,7 @@ typedef enum {
   CM_CFG_PULSE_FLAT_AFTER_S = 11,
   CM_CFG_PULSE_SNOOZE_MIN = 12,
   CM_CFG_IMPACT_IMMOBILE_S = 20,
+  CM_CFG_SHOCK_IMMOBILE_S = 21,
   CM_CFG_NONMOTION_DAY_MIN = 30,
   CM_CFG_NONMOTION_NIGHT_MIN = 31,
   CM_CFG_NIGHT_START_HOUR = 32,

@@ -26,6 +26,7 @@ class WatchConfig(context: Context) {
         PULSE_FLAT_AFTER_S(11, 300, 120, 900),
         PULSE_SNOOZE_MIN(12, 10, 1, 120),
         IMPACT_IMMOBILE_S(20, 60, 30, 300),
+        SHOCK_IMMOBILE_S(21, 120, 30, 600),
         NONMOTION_DAY_MIN(30, 40, 10, 240),
         NONMOTION_NIGHT_MIN(31, 90, 10, 480),
         NIGHT_START_HOUR(32, 23, 0, 23),
@@ -72,10 +73,18 @@ class WatchConfig(context: Context) {
     }
 
     /** Fields to send when the watchapp opens: everything until first ack, then the pending ones. */
-    fun toSend(): List<Pair<Field, Int>> {
+    /**
+     * What to send: every pending field, plus — on a watchapp open — every
+     * field the wearer has changed from its default. A reinstalled or
+     * upgraded watchapp falls back to defaults without telling anyone
+     * (the persisted struct is discarded when its size changes), so the
+     * phone restores its settings at each open; unchanged fields cost
+     * nothing.
+     */
+    fun toSend(afterOpen: Boolean = false): List<Pair<Field, Int>> {
         val neverSynced = Field.entries.none { acked(it) != null }
         return Field.entries
-            .filter { neverSynced || isPending(it) }
+            .filter { neverSynced || isPending(it) || (afterOpen && get(it) != it.default) }
             .map { it to get(it) }
     }
 

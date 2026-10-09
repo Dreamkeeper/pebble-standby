@@ -118,6 +118,8 @@ static void sec_buzz_aftershock(void) {
 static void mins_still(int minutes) { for (int i = 0; i < minutes * 60; i++) sec_still(); }
 static void secs_still(int seconds) { for (int i = 0; i < seconds; i++) sec_still(); }
 
+static void sec_shock(void);
+
 /* freefall then hard impact within one batch */
 static void event_fall(void) {
   cm_accel_sample s[3];
@@ -173,6 +175,7 @@ static void test_defaults(void) {
   CHECK(cfg.nonmotion_day_min == 40);
   CHECK(cfg.nonmotion_night_min == 90);
   CHECK(cfg.countdown_impact_s < cfg.countdown_s); /* impacts get a faster fuse */
+  CHECK(cfg.shock_immobile_s == 2 * cfg.impact_immobile_s); /* a knock waits twice as long */
   CHECK(cfg.notworn_after_min == 3);   /* removal nags fast, never contacts */
   CHECK(cfg.pulse_proof_min == 5);     /* live pulse = proof of life */
   CHECK(cfg.pulse_flat_after_s == 300); /* frozen value = stale (S4) */
@@ -230,6 +233,57 @@ static void test_impact_full_ladder(void) {
   CHECK(cc != 0);
   CHECK(cc && cc->reason == CM_CANCEL_USER);
   CHECK(cm_current_stage(&core) == CM_STAGE_NONE);
+}
+
+/* Field 2026-10-09 19:17: a knock (bare shock, no freefall) followed by
+ * a quiet minute asked "Are you OK?". A knock is far more often followed
+ * by stillness than a fall is, so it waits shock_immobile_s (default
+ * 120 s, twice the freefall window) and the freefall signature keeps its
+ * own window. */
+static void test_bare_shock_waits_longer(void) {
+  g_test = "bare_shock_waits_longer";
+  cm_config cfg = test_cfg();
+  cfg.enabled[CM_DET_NOTWORN] = 0;
+  setup(&cfg);
+  warmup();
+
+  sec_shock();
+  CHECK(core.impact_phase == 2);
+  CHECK(core.impact_bare == 1);
+  secs_still_worn(66);                     /* the freefall window: not enough for a knock */
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+  CHECK(core.impact_phase == 2);           /* still a candidate */
+  secs_still_worn(60);                     /* 5 + 120 s of stillness in all */
+  const cm_action *ci = find_type(CM_ACT_CHECKIN_START);
+  CHECK(ci && ci->detector == CM_DET_IMPACT);
+  log_reset();
+  cm_user_ok(&core, now_ms);
+  drain();
+
+  /* the freefall signature keeps the shorter window */
+  log_reset();
+  secs_still_worn(5);
+  event_fall();
+  CHECK(core.impact_bare == 0);
+  secs_still_worn(66);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 1);
+  log_reset();
+  cm_user_ok(&core, now_ms);
+  drain();
+
+  /* a knock that is followed by movement inside the longer window stays silent */
+  log_reset();
+  secs_still_worn(5);
+  sec_shock();
+  secs_still_worn(90);
+  sec_moving_hr(80);
+  secs_still_worn(130);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+
+  /* the knob reaches the core like every other setting */
+  CHECK(cm_apply_config(&core, CM_CFG_SHOCK_IMMOBILE_S, 20) == 0);   /* below range */
+  CHECK(cm_apply_config(&core, CM_CFG_SHOCK_IMMOBILE_S, 300) == 1);
+  CHECK(cm_config_get(&core, CM_CFG_SHOCK_IMMOBILE_S) == 300);
 }
 
 static void test_impact_cancelled_by_motion(void) {
@@ -1305,6 +1359,7 @@ static void test_impact_on_unworn_watch_is_silent(void) {
 int main(void) {
   test_defaults();
   test_impact_full_ladder();
+  test_bare_shock_waits_longer();
   test_impact_cancelled_by_motion();
   test_impact_checkin_needs_button();
   test_apply_config();

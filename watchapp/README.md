@@ -11,7 +11,7 @@ heart-rate sensor run the motion, impact and check-in detectors only.
 | Detector | Trigger | Then |
 |---|---|---|
 | Pulse loss | readings stop, or the value freezes, while you are still | silent 45 s hunt at 1 Hz → "Are you OK?" → countdown → alarm |
-| Impact | freefall-then-impact or a hard shock, then 60 s of immobility (while worn) | "Are you OK?" → fast countdown → alarm; only SELECT dismisses |
+| Impact | freefall-then-impact, then 60 s of immobility; or a bare shock (no freefall), then 120 s (while worn) | "Are you OK?" → fast countdown → alarm; only SELECT dismisses |
 | Non-motion | no micro-movement for 40 min by day / longer at night | same ladder |
 | Check-in | scheduled check-in missed | same ladder; only a button press answers it |
 | Not worn / sensor fault | no pulse and no motion / no pulse while moving | a nag to the wearer only — never contacts |
