@@ -115,4 +115,17 @@ class SettingsStore(context: Context) {
     var diagnosticsUnlocked: Boolean
         get() = p.getBoolean("diagnostics_unlocked", false)
         set(v) = p.edit().putBoolean("diagnostics_unlocked", v).apply()
+
+    /** Planned pause started on the phone (planned-pause): wall-clock end,
+     *  0 = none. Persisted so a service restart keeps the pause. */
+    var pauseUntilT: Long
+        get() = p.getLong("pause_until_t", 0L)
+        set(v) = p.edit().putLong("pause_until_t", v).apply()
+
+    /** What the watch still has to be told about the pause: -1 nothing,
+     *  0 resume now, >0 suspend for that many minutes. Re-sent at every
+     *  watchapp open until the watch confirms through PMSG_SUSPENDED. */
+    var pauseWatchPending: Int
+        get() = p.getInt("pause_watch_pending", -1)
+        set(v) = p.edit().putInt("pause_watch_pending", v).apply()
 }

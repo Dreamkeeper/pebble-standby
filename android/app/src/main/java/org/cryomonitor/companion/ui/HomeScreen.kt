@@ -18,7 +18,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +61,7 @@ fun HomeScreen(
     onOpenServer: () -> Unit,
     onOpenWatch: () -> Unit,
     onFireDrill: () -> Unit,
+    onPause: (Long) -> Unit = {},
     nowMs: () -> Long = { System.currentTimeMillis() },
 ) {
     val facts by LiveState.facts.collectAsStateWithLifecycle()
@@ -94,6 +98,16 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             VerdictCard(verdict, onAction)
+            // A planned pause (planned-pause): offered whenever nothing is
+            // ringing and nothing is already paused.
+            var pauseSheet by remember { mutableStateOf(false) }
+            if (verdict.state == Coverage.COVERED || verdict.state == Coverage.NEEDS_ATTENTION) {
+                TextButton(onClick = { pauseSheet = true }) {
+                    Text(stringResource(R.string.home_pause))
+                }
+            }
+            if (pauseSheet) PauseSheet(now, onDismiss = { pauseSheet = false },
+                                       onPick = { t -> pauseSheet = false; onPause(t) })
 
             InfoCard(
                 title = stringResource(R.string.home_watch),
@@ -198,6 +212,57 @@ private fun InfoCard(
                 }
             }
             trailing?.invoke()
+        }
+    }
+}
+
+/**
+ * "Pause monitoring": presets a wearer thinks in (a couple of hours, the
+ * rest of today, until tomorrow morning) plus a clock for anything else.
+ * Every row names the time it ends, so the choice is never a guess.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PauseSheet(nowMs: Long, onDismiss: () -> Unit, onPick: (Long) -> Unit) {
+    val context = LocalContext.current
+    val zone = java.time.ZoneId.systemDefault()
+    val now = java.time.Instant.ofEpochMilli(nowMs).atZone(zone)
+    fun clock(t: java.time.ZonedDateTime) = "%02d:%02d".format(t.hour, t.minute)
+    fun ms(t: java.time.ZonedDateTime) = t.toInstant().toEpochMilli()
+    val in2h = now.plusHours(2)
+    val in4h = now.plusHours(4)
+    val midnight = now.toLocalDate().atTime(23, 59).atZone(zone)
+    val morning = now.toLocalDate().plusDays(1).atTime(8, 0).atZone(zone)
+    val options = listOfNotNull(
+        Triple(R.string.pause_2h, clock(in2h), ms(in2h)),
+        Triple(R.string.pause_4h, clock(in4h), ms(in4h)),
+        if (midnight.isAfter(in2h)) Triple(R.string.pause_until_midnight, clock(midnight), ms(midnight)) else null,
+        Triple(R.string.pause_until_morning, clock(morning), ms(morning)),
+    )
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Text(stringResource(R.string.pause_title), style = MaterialTheme.typography.titleLarge,
+                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            Text(stringResource(R.string.pause_explain), style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+            options.forEach { (label, at, t) ->
+                ListItem(
+                    headlineContent = { Text(stringResource(label)) },
+                    supportingContent = { Text(stringResource(R.string.pause_until, at)) },
+                    modifier = Modifier.clickable { onPick(t) },
+                )
+            }
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.pause_pick)) },
+                modifier = Modifier.clickable {
+                    android.app.TimePickerDialog(context, { _, h, m ->
+                        var t = now.toLocalDate().atTime(h, m).atZone(zone)
+                        if (!t.isAfter(now.plusMinutes(5))) t = t.plusDays(1)
+                        onPick(ms(t))
+                    }, now.hour, now.minute, true).show()
+                },
+            )
         }
     }
 }

@@ -8,6 +8,15 @@
     <!-- Home -->
     <string name="home_title">Standby</string>
     <string name="home_watch">Watch</string>
+    <string name="home_pause">Pause monitoring…</string>
+    <string name="pause_title">Pause monitoring</string>
+    <string name="pause_explain">For a swim, a sauna or a day without the watch. The watch pauses too when it can be reached, your server shows you as paused, and monitoring comes back on its own when you wear the watch again or at the time you choose.</string>
+    <string name="pause_2h">For 2 hours</string>
+    <string name="pause_4h">For 4 hours</string>
+    <string name="pause_until_midnight">Rest of today</string>
+    <string name="pause_until_morning">Until tomorrow morning</string>
+    <string name="pause_pick">Until a time I choose…</string>
+    <string name="pause_until">until %1$s</string>
     <string name="home_people">Your people</string>
     <string name="home_server">Your server</string>
     <string name="home_watch_linked">Connected</string>

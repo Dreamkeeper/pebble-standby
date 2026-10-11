@@ -25,6 +25,27 @@ class CoverageStateTest {
     }
 
     @Test
+    fun `a planned pause keeps a silent watch from being attention`() {
+        val away = covered.copy(plannedPause = true, suspendedUntilT = now + 6 * 3_600_000,
+                                watchConnected = false, lastWorkerProofT = now - 2 * 3_600_000,
+                                lastNagT = now - 60_000, lastNagKind = "notworn")
+        val r = v(away)
+        assertEquals(Coverage.PAUSED, r.state)
+        assertTrue(r.reason, r.reason.startsWith("Paused until"))
+        assertEquals(CoverageAction.RESUME, r.action)
+        // the server and the contacts still count
+        assertEquals(Coverage.NEEDS_ATTENTION, v(away.copy(serverReachable = false)).state)
+        assertEquals(Coverage.NEEDS_ATTENTION, v(away.copy(noDeliverableContacts = true)).state)
+        // a short pause counts down, a long one names the time
+        assertEquals("Paused for 26 min more.",
+            WearerWords.pausedUntil(now + 25 * 60_000 + 30_000, now))
+        val z = java.time.ZoneId.of("UTC")
+        val eight = java.time.Instant.ofEpochMilli(now).atZone(z).toLocalDate()
+            .plusDays(1).atTime(8, 0).atZone(z).toInstant().toEpochMilli()
+        assertEquals("Paused until tomorrow 08:00.", WearerWords.pausedUntil(eight, now, z))
+    }
+
+    @Test
     fun `alarm beats everything, countdown is a check-in`() {
         val alarm = v(covered.copy(alertStage = 2, alertDetector = "impact", watchConnected = false,
                                    noDeliverableContacts = true))

@@ -32,7 +32,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 log = logging.getLogger("cryomonitor")
 
-app = FastAPI(title="Standby Server", version="0.3.3")
+app = FastAPI(title="Standby Server", version="0.3.4")
 app.include_router(wearers_router)
 app.include_router(diagnostics.router)
 app.include_router(ui.router)
@@ -199,10 +199,15 @@ def drill_result(r: DrillResultIn,
 def offline_window(w: OfflineWindowIn,
                    authorization: str | None = Header(default=None)):
     auth = require_wearer(authorization, w.token)
-    get_monitor(auth.wearer_id).declare_offline(time.time(), w.duration_s)
+    if not 0 <= w.duration_s <= 7 * 86400:
+        raise HTTPException(400, "duration_s must be 0 (cancel) to 7 days")
+    now = time.time()
+    m = get_monitor(auth.wearer_id)
+    m.declare_offline(now, w.duration_s)
     _persist_deadman(auth.wearer_id)
-    db.add_event(auth.wearer_id, "offline_window", {"duration_s": w.duration_s})
-    return {"state": PhoneState.OFFLINE_DECLARED.value}
+    db.add_event(auth.wearer_id, "offline_window",
+                 {"duration_s": w.duration_s, "cancelled": w.duration_s == 0})
+    return {"state": m.evaluate(now).value}
 
 
 @app.post("/api/v1/alarm")

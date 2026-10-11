@@ -166,9 +166,11 @@ class ServerClient(
     // ---- monitoring-path calls (unchanged behavior) ----
 
     fun heartbeat(phoneBatteryPct: Int, watchBatteryPct: Int?, watchDataAgeS: Int?,
-                  lowBatteryWarning: Boolean, commandAck: String? = null): HeartbeatAck? {
+                  lowBatteryWarning: Boolean, commandAck: String? = null,
+                  suspendedUntilT: Long? = null): HeartbeatAck? {
         val resp = call("POST", "/api/v1/heartbeat", JSONObject().apply {
             put("phone_battery_pct", phoneBatteryPct)
+            suspendedUntilT?.let { put("suspended_until", it / 1000.0) }
             watchBatteryPct?.let { put("watch_battery_pct", it) }
             watchDataAgeS?.let { put("watch_data_age_s", it) }
             put("low_battery_warning", lowBatteryWarning)
@@ -212,6 +214,7 @@ class ServerClient(
     fun resolveOpenAlarms(): Boolean =
         request("POST", "/api/v1/alarm/resolve-open", JSONObject()).first in 200..299
 
+    /** Declares a planned absence to the dead-man; 0 cancels it (planned-pause). */
     fun offlineWindow(durationS: Int): Boolean =
         call("POST", "/api/v1/offline-window",
              JSONObject().put("duration_s", durationS)) != null

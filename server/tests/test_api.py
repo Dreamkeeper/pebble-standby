@@ -101,6 +101,18 @@ def test_offline_window(appenv):
     assert r.json()["state"] == "offline_declared"
 
 
+def test_offline_window_cancel_and_limits(appenv):
+    h = wearer_headers()
+    appenv.client.post("/api/v1/offline-window", json={"duration_s": 3600}, headers=h)
+    r = appenv.client.post("/api/v1/offline-window", json={"duration_s": 0}, headers=h)
+    assert r.status_code == 200
+    assert r.json()["state"] != "offline_declared"
+    assert appenv.client.post("/api/v1/offline-window",
+                              json={"duration_s": 8 * 86400}, headers=h).status_code == 400
+    assert appenv.client.post("/api/v1/offline-window",
+                              json={"duration_s": -5}, headers=h).status_code == 400
+
+
 def test_admin_status_lists_all_wearers(appenv):
     r = appenv.client.get("/api/v1/status", headers=admin_headers())
     assert r.status_code == 200

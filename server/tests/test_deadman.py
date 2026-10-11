@@ -57,3 +57,15 @@ def test_declared_offline_window_suppresses():
 def test_never_seen_phone_is_not_an_emergency():
     m = make()
     assert m.evaluate(1e9) == PhoneState.OK
+
+
+def test_offline_window_cancel_restores_normal_rules():
+    m = make()
+    m.heartbeat(0.0, battery_pct=80)
+    m.declare_offline(10.0, 6 * 3600)
+    assert m.evaluate(3600) == PhoneState.OFFLINE_DECLARED
+    m.declare_offline(3600, 0)          # the wearer resumed early
+    assert m.offline_until_t is None
+    m.heartbeat(3600, battery_pct=80)
+    assert m.evaluate(3601) == PhoneState.OK
+    assert m.evaluate(3600 + 1800) == PhoneState.SILENT   # back to the usual grace

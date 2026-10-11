@@ -234,6 +234,15 @@ class MonitorService : Service(), PebbleTransport.Listener {
                     System.currentTimeMillis() + secs * 1000L else 0L
                 CmLog.i(TAG, "suspension from watch: " +
                     if (secs > 0) "for ${secs}s" else "ended")
+                // Planned pause bookkeeping: the watch confirmed what we
+                // sent, or ended the pause itself (worn again, SELECT).
+                if (secs > 0) {
+                    if (settings.pauseWatchPending > 0) settings.pauseWatchPending = -1
+                    if (pauseActive()) watchPauseSeen = true
+                } else {
+                    if (settings.pauseWatchPending == 0) settings.pauseWatchPending = -1
+                    if (pauseActive() && watchPauseSeen) endPause("watch_resumed")
+                }
                 updateNotification()
             }
             Protocol.PMSG_DRILL_RESULT -> {
@@ -299,6 +308,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
 
     override fun onWatchappOpened() {
         pushWatchConfig(afterOpen = true)
+        pushWatchPause(afterOpen = true)
         // The lab must survive any open path: auto-launch that raced the
         // lab-on message, or the wearer opening the app by hand mid-lab.
         // Re-arm shortly after the inbox registers.
@@ -369,6 +379,57 @@ class MonitorService : Service(), PebbleTransport.Listener {
                     PebbleTransport.KEY_SECONDS to v))
                 delay(150)
             }
+        }
+    }
+
+    // ---- planned pause (planned-pause) ----
+
+    @Volatile private var watchPauseSeen = false
+
+    private fun pauseActive(now: Long = System.currentTimeMillis()) = settings.pauseUntilT > now
+
+    /** One tap on the phone: the watch suspends (when it can be reached),
+     *  the server stops expecting the watch, Home reads Paused, and the
+     *  "needs attention" notification stays quiet until the horizon. */
+    private fun startPause(untilT: Long) {
+        val now = System.currentTimeMillis()
+        if (untilT <= now + 60_000) return
+        val minutes = ((untilT - now) / 60_000).toInt().coerceIn(1, 65535)
+        settings.pauseUntilT = untilT
+        settings.pauseWatchPending = minutes
+        watchPauseSeen = false
+        CmLog.i(TAG, "planned pause until ${java.util.Date(untilT)} ($minutes min)")
+        pushWatchPause(afterOpen = false)
+        getSystemService(NotificationManager::class.java).cancel(NOTIF_FAULT_ID)
+        scope.launch { if (server.configured) server.offlineWindow(minutes * 60) }
+        updateNotification()
+    }
+
+    private fun endPause(cause: String) {
+        if (settings.pauseUntilT == 0L && settings.pauseWatchPending < 0) return
+        val expired = settings.pauseUntilT in 1..System.currentTimeMillis()
+        settings.pauseUntilT = 0L
+        // The watch resumes unless it ended the pause itself or its own
+        // timer has already run out with ours.
+        settings.pauseWatchPending = if (cause == "watch_resumed" || expired) -1 else 0
+        CmLog.i(TAG, "planned pause ended ($cause)")
+        if (settings.pauseWatchPending == 0) pushWatchPause(afterOpen = false)
+        if (!expired) scope.launch { if (server.configured) server.offlineWindow(0) }
+        updateNotification()
+    }
+
+    /** Deliver the pending suspend or resume; PMSG_SUSPENDED confirms it.
+     *  A closed watchapp is asked to launch, and the next open re-sends. */
+    private fun pushWatchPause(afterOpen: Boolean) {
+        val pending = settings.pauseWatchPending
+        if (pending < 0) return
+        if (!watchLink.watchappOpen && !afterOpen) { selfHealLaunch("pause"); return }
+        scope.launch {
+            if (afterOpen) delay(1_200)
+            watchLink.send(mapOf(
+                PebbleTransport.KEY_MSG_TYPE to Protocol.PMSG_SUSPEND_SET,
+                PebbleTransport.KEY_SECONDS to pending,
+                PebbleTransport.KEY_DETECTOR to 1))
         }
     }
 
@@ -573,7 +634,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
             // only a fault when the LINK is gone — or, once DataLogging
             // heartbeats have ever flowed, when they stop (worker evicted).
             val silentFor = (System.currentTimeMillis() - lastWatchDataT) / 1000
-            if (!watchConnected && lastWatchDataT > 0 &&
+            if (!watchConnected && lastWatchDataT > 0 && !pauseActive() &&
                 silentFor > Protocol.WATCH_SILENT_AFTER_S && !faultNotified) {
                 faultNotified = true
                 soak.inc(SoakStats.LINK_FAULTS)
@@ -586,7 +647,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
             // Worker-eviction watchdog: only armed once records have ever
             // arrived (so it stays quiet until S5 proves the channel).
             val workerSilent = (System.currentTimeMillis() - workerLastRecT) / 1000
-            if (watchConnected && workerLastRecT > 0 &&
+            if (watchConnected && workerLastRecT > 0 && !pauseActive() &&
                 workerSilent > Protocol.WORKER_SILENT_AFTER_S &&
                 !workerFaultNotified) {
                 workerFaultNotified = true
@@ -742,9 +803,12 @@ class MonitorService : Service(), PebbleTransport.Listener {
         val pct = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val age = if (lastWatchDataT == 0L) null
                   else ((System.currentTimeMillis() - lastWatchDataT) / 1000).toInt()
+        val pausedUntil = maxOf(suspendedUntilT, settings.pauseUntilT)
+            .takeIf { it > System.currentTimeMillis() }
         val ack = server.heartbeat(pct, watchBattery, age,
                                    lowBatteryWarning = pct in 1..15,
-                                   commandAck = pendingCommandAck)
+                                   commandAck = pendingCommandAck,
+                                   suspendedUntilT = pausedUntil)
         CmLog.d(TAG, "server heartbeat ok=${ack != null} phoneBatt=$pct " +
             "watchAge=$age degraded=${ack?.degraded}")
         if (ack != null) {
@@ -794,6 +858,14 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 watchLink.send(mapOf(
                     PebbleTransport.KEY_MSG_TYPE to Protocol.PMSG_USER_OK_REMOTE))
                 scope.launch { retract(intent.getStringExtra("cause") ?: "cancelled_on_phone") }
+            }
+            ACTION_PAUSE -> startPause(intent.getLongExtra("until_t", 0L))
+            ACTION_RESUME_PAUSE -> {
+                // The watch's own suspension ends on USER_OK (manual resume);
+                // the planned pause ends here and tells the server.
+                watchLink.send(mapOf(
+                    PebbleTransport.KEY_MSG_TYPE to Protocol.PMSG_USER_OK_REMOTE))
+                endPause("resumed_on_phone")
             }
             ACTION_TEST_ALARM -> {
                 CmLog.i(TAG, "fire-drill TEST alarm requested")
@@ -1049,6 +1121,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
 
     private fun updateNotification() {
         val now = System.currentTimeMillis()
+        if (settings.pauseUntilT in 1 until now) endPause("expired")
         val facts = currentFacts(now)
         var verdict = CoverageState.compute(facts, now)
         if (verdict.state == Coverage.COVERED && lastVerdictState != Coverage.COVERED) {
@@ -1075,7 +1148,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
         lastWorkerProofT = workerLastProofT,
         storeMode = storeMode(),
         chargingHold = chargingHold,
-        suspendedUntilT = suspendedUntilT,
+        suspendedUntilT = maxOf(suspendedUntilT, settings.pauseUntilT),
+        plannedPause = pauseActive(now),
         serverReachable = serverReachable,
         serverLastResult = server.lastResult,
         alertStage = alertStage,
@@ -1144,6 +1218,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
         const val ACTION_WATCH_CONFIG_CHANGED = "org.cryomonitor.WATCH_CONFIG_CHANGED"
         const val ACTION_CONFIG_CHANGED = "org.cryomonitor.CONFIG_ACKED"
         const val ACTION_TEST_ALARM = "org.cryomonitor.TEST_ALARM"
+        const val ACTION_PAUSE = "org.cryomonitor.PAUSE"              // extra until_t (ms)
+        const val ACTION_RESUME_PAUSE = "org.cryomonitor.RESUME_PAUSE"
         const val ACTION_PERMISSION_TEST = "org.cryomonitor.PERMISSION_TEST"
         const val ACTION_ALERT_CANCELLED = "org.cryomonitor.ALERT_CANCELLED"
         const val ACTION_SET_DEBUG = "org.cryomonitor.SET_DEBUG"

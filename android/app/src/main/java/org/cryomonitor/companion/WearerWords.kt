@@ -67,6 +67,24 @@ object WearerWords {
         else "Paused for $min min more."
     }
 
+    private val monthNames = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+
+    /** Short pauses count down; long ones name the time, which is how the
+     *  wearer chose them ("until tomorrow morning"). */
+    fun pausedUntil(untilT: Long, nowMs: Long,
+                    zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+        val left = untilT - nowMs
+        if (left < 2 * 3_600_000L) return pausedReason(left)
+        val end = java.time.Instant.ofEpochMilli(untilT).atZone(zone)
+        val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+        val clock = "%02d:%02d".format(end.hour, end.minute)
+        return when (end.toLocalDate()) {
+            today -> "Paused until $clock."
+            today.plusDays(1) -> "Paused until tomorrow $clock."
+            else -> "Paused until ${end.dayOfMonth} ${monthNames[end.monthValue - 1]} $clock."
+        }
+    }
+
     fun coveredSince(sinceT: Long, nowMs: Long): String {
         if (sinceT <= 0) return "Watch, phone and your people are in place."
         val age = nowMs - sinceT

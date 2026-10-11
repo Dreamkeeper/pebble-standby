@@ -158,6 +158,8 @@ static void set_debug(uint8_t on) {
   APP_LOG(APP_LOG_LEVEL_INFO, "debug %s", on ? "ON" : "off");
 }
 
+static void suspend_minutes(uint16_t minutes, bool auto_resume);
+
 static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *t = dict_find(iter, MESSAGE_KEY_MSG_TYPE);
   if (!t) return;
@@ -203,6 +205,22 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     case PMSG_USER_OK_REMOTE: {
       AppWorkerMessage m = {0};
       app_worker_send_message(WMSG_USER_OK, &m);
+      break;
+    }
+    case PMSG_SUSPEND_SET: {
+      /* The phone's planned pause: suspend for SECONDS minutes with the
+       * usual auto-resume on wear, or resume now when it sends 0. The
+       * worker's SUSPEND_STARTED / AUTO_RESUMED actions confirm either
+       * way through PMSG_SUSPENDED. */
+      Tuple *v = dict_find(iter, MESSAGE_KEY_SECONDS);
+      Tuple *ar = dict_find(iter, MESSAGE_KEY_DETECTOR);
+      uint16_t minutes = v ? v->value->uint16 : 0;
+      if (minutes == 0) {
+        AppWorkerMessage m = {0};
+        app_worker_send_message(WMSG_RESUME, &m);
+      } else {
+        suspend_minutes(minutes, !ar || ar->value->uint8 != 0);
+      }
       break;
     }
     case PMSG_HR_LAB: {
@@ -477,8 +495,11 @@ static void handle_action(const cm_action *a) {
       break;
     }
     case CM_ACT_SUSPEND_STARTED:
-      snprintf(s_status_buf, sizeof(s_status_buf), "Suspended %u min",
-               (unsigned)(a->seconds / 60u));
+      if (a->seconds / 60u >= CM_UNTIL_WORN_MIN)
+        snprintf(s_status_buf, sizeof(s_status_buf), "Until worn again");
+      else
+        snprintf(s_status_buf, sizeof(s_status_buf), "Suspended %u min",
+                 (unsigned)(a->seconds / 60u));
       text_layer_set_text(s_status_layer, s_status_buf);
       send_to_phone(PMSG_SUSPENDED, a); /* SECONDS = duration */
       break;
@@ -662,18 +683,23 @@ static void suspend_minutes(uint16_t minutes, bool auto_resume) {
   AppWorkerMessage m = {.data0 = minutes, .data1 = auto_resume ? 1 : 0};
   app_worker_send_message(WMSG_SUSPEND, &m);
   /* label confirmed by the worker's SUSPEND_STARTED action + status polls */
-  snprintf(s_status_buf, sizeof(s_status_buf),
-           auto_resume ? "Suspended %u min" : "Carry %u min", minutes);
+  if (auto_resume && minutes >= CM_UNTIL_WORN_MIN)
+    snprintf(s_status_buf, sizeof(s_status_buf), "Until worn again");
+  else
+    snprintf(s_status_buf, sizeof(s_status_buf),
+             auto_resume ? "Suspended %u min" : "Carry %u min", minutes);
   text_layer_set_text(s_status_layer, s_status_buf);
 }
 
 /* TODO(M1): replace with a real MenuLayer incl. custom duration.
  * Skeleton: UP cycles presets. */
 static void up_click(ClickRecognizerRef ref, void *ctx) {
-  static const uint16_t presets[] = {30, 60, 120};
+  /* The fourth preset is "until worn again": a day without the watch
+   * (planned-pause); wear evidence or SELECT ends it, 14 h at most. */
+  static const uint16_t presets[] = {30, 60, 120, CM_UNTIL_WORN_MIN};
   static int idx = 0;
   suspend_minutes(presets[idx], true);
-  idx = (idx + 1) % 3;
+  idx = (idx + 1) % 4;
 }
 
 /* Carry mode: timer-only suspension for deliberate off-wrist transport.

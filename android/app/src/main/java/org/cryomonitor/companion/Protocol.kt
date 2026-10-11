@@ -25,6 +25,10 @@ object Protocol {
                                        // HEARTBEAT_SEQ = watch arm->result ms
     const val PMSG_CHARGING = 13       // watch->phone: SECONDS 1=on charger
     const val PMSG_HR_LAB = 14         // phone->watch: SECONDS 1/0 lab on/off
+    const val PMSG_SUSPEND_SET = 20    // phone->watch: SECONDS = minutes (0 = resume),
+                                       // DETECTOR = 1 auto-resume on wear (planned-pause)
+    /** "Until worn again" on the watch: a 14 h cap on an auto-resuming suspension. */
+    const val UNTIL_WORN_MIN = 840
     const val PMSG_CONFIG_SET = 19     // phone->watch: DETECTOR = WatchConfig field id,
                                        // SECONDS = value (watch-settings-sync)
     const val PMSG_ALARM_ACK = 18      // phone->watch: SECONDS = episode id;

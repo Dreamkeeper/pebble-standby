@@ -48,8 +48,9 @@ class DeadmanMonitor:
         self.low_battery_notice_t = t
 
     def declare_offline(self, t: float, duration_s: int) -> None:
-        """User-declared connectivity window (airplane, subway, sauna trip)."""
-        self.offline_until_t = t + duration_s
+        """User-declared window (airplane, subway, a day without the watch);
+        a duration of 0 cancels it (the wearer resumed early)."""
+        self.offline_until_t = t + duration_s if duration_s > 0 else None
 
     def _silent_threshold_s(self) -> int:
         extra = (self.cfg.low_battery_extra_s

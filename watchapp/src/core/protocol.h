@@ -111,10 +111,18 @@ enum {
                              off-body conditions read OffWrist) */
   PMSG_CONFIG_SET = 19,   /* phone->watch: DETECTOR = cm_cfg_field id,
                              SECONDS = value; applied live by the worker */
-  PMSG_ALARM_ACK = 18     /* phone->watch: SECONDS = episode id — app-level
+  PMSG_ALARM_ACK = 18,    /* phone->watch: SECONDS = episode id — app-level
                              delivery ACK for PRE_ALARM/ALARM/CANCEL; the
                              watch retries until this arrives (D2) */
+  PMSG_SUSPEND_SET = 20   /* phone->watch: SECONDS = minutes to suspend
+                             (0 = resume now), DETECTOR = 1 to auto-resume
+                             on wear. The planned pause from the phone. */
 };
+
+/* "Until worn again": a suspension that only wear evidence (auto-resume)
+ * or SELECT ends, capped at 14 h so a forgotten watch is not silent for
+ * ever. Offered on the watch menu and by the phone's planned pause. */
+#define CM_UNTIL_WORN_MIN 840
 
 /* S1 latency drill: the worker waits this long after the app closes before
  * firing, so the measured launch is a genuine cold start. */

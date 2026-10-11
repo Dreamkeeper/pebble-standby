@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     onOpenServer = { nav.navigate(ROUTE_SERVER) },
                     onOpenWatch = { nav.navigate(ROUTE_PEBBLE) },
                     onFireDrill = { fireDrill() },
+                    onPause = { untilT -> startPause(untilT) },
                 )
             }
             composable(ROUTE_SETTINGS) {
@@ -117,9 +118,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** One Resume for every kind of pause: the watch's own suspension and
+     *  the planned one from the phone (planned-pause). */
     private fun resumeOnWatch() {
         startService(Intent(this, MonitorService::class.java)
-            .setAction(MonitorService.ACTION_USER_CANCEL).putExtra("cause", "resumed_on_phone"))
+            .setAction(MonitorService.ACTION_RESUME_PAUSE))
+    }
+
+    private fun startPause(untilT: Long) {
+        startService(Intent(this, MonitorService::class.java)
+            .setAction(MonitorService.ACTION_PAUSE).putExtra("until_t", untilT))
     }
 
     private fun fireDrill() {

@@ -27,6 +27,8 @@ data class CoverageFacts(
     val storeMode: Boolean = false,
     val chargingHold: Boolean = false,
     val suspendedUntilT: Long = 0L,
+    /** A pause the wearer planned on the phone: a silent watch is expected. */
+    val plannedPause: Boolean = false,
     val carryMode: Boolean = false,
     val serverReachable: Boolean = true,
     val serverLastResult: String = "",
@@ -72,16 +74,19 @@ object CoverageState {
         // Needs attention: worst first within the band.
         if (f.serverConfigured && f.noDeliverableContacts == true) return attention(
             WearerWords.REASON_NO_CONTACTS, CoverageAction.ADD_CONTACT, WearerWords.ACTION_ADD_CONTACT)
-        if (!f.watchConnected) return attention(
+        // During a planned pause the watch is expected to be away: its
+        // link, its silence and its nags are not attention; the server and
+        // the contacts still are.
+        if (!f.watchConnected && !f.plannedPause) return attention(
             WearerWords.REASON_WATCH_LINK, CoverageAction.OPEN_BLUETOOTH, WearerWords.ACTION_OPEN_BLUETOOTH)
-        if (f.lastNagT > 0 && nowMs - f.lastNagT < NAG_FRESH_MS) {
+        if (!f.plannedPause && f.lastNagT > 0 && nowMs - f.lastNagT < NAG_FRESH_MS) {
             return if (f.lastNagKind == "sensor") attention(
                 WearerWords.REASON_SENSOR, CoverageAction.OPEN_WATCH, WearerWords.ACTION_CHECK_WATCH)
             else attention(
                 WearerWords.REASON_NOT_WORN, CoverageAction.RE_WEAR, WearerWords.ACTION_RE_WEAR)
         }
-        if (f.workerFault || (!f.storeMode && f.lastWorkerProofT > 0 &&
-                nowMs - f.lastWorkerProofT > WORKER_STALE_MS)) return attention(
+        if (!f.plannedPause && (f.workerFault || (!f.storeMode && f.lastWorkerProofT > 0 &&
+                nowMs - f.lastWorkerProofT > WORKER_STALE_MS))) return attention(
             WearerWords.REASON_WATCH_SILENT, CoverageAction.OPEN_WATCH, WearerWords.ACTION_CHECK_WATCH)
         if (f.serverConfigured && !f.serverReachable) return attention(
             WearerWords.serverReason(f.serverLastResult), CoverageAction.OPEN_SERVER,
@@ -95,7 +100,7 @@ object CoverageState {
             Coverage.PAUSED, WearerWords.PAUSED, WearerWords.REASON_CARRY,
             CoverageAction.RESUME, WearerWords.ACTION_RESUME)
         if (suspLeft > 0) return CoverageVerdict(
-            Coverage.PAUSED, WearerWords.PAUSED, WearerWords.pausedReason(suspLeft),
+            Coverage.PAUSED, WearerWords.PAUSED, WearerWords.pausedUntil(f.suspendedUntilT, nowMs),
             CoverageAction.RESUME, WearerWords.ACTION_RESUME)
 
         return CoverageVerdict(

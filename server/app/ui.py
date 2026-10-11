@@ -78,7 +78,9 @@ def wearer_states(w: dict) -> tuple[int, list[dict]]:
         states.append({"css": "late", "label": "phone late"})
         score = max(score, 50)
     elif st == PhoneState.OFFLINE_DECLARED:
-        states.append({"css": "offline", "label": "offline (declared)"})
+        left = int(((m.offline_until_t or 0) - time.time()) / 60)
+        states.append({"css": "offline",
+                       "label": f"paused by wearer · {left // 60}h {left % 60:02d}m left"})
         score = max(score, 20)
 
     from .wearers import wearer_degraded
