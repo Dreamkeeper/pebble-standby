@@ -139,8 +139,8 @@ is about the *action*, not the screen:
 
 | Action | Control | Example |
 |---|---|---|
-| The one thing the verdict asks for | Filled button, full width on the card | "I'm OK", "Add a contact", "Resume monitoring" |
-| A deliberate secondary act that starts a flow | Filled tonal button, full width | "Pause monitoring", "Enrol", "Save" |
+| The action that completes the screen's purpose | Filled button; full width and 56 dp tall when a wearer may tap it in a hurry | "I'm OK" and "Add a contact" on the verdict card, "Save" on a form, "Enrol" on the server page |
+| A deliberate secondary act that starts its own flow | Filled tonal button, full width | "Pause monitoring" on Home, "Test fallback bot" |
 | An alternative next to a primary | Outlined button | "Not now" beside "Set up" |
 | A low-stakes option inside a list, row or sheet | Text button | "Fire drill" on the people row, "Test" on a permission row |
 

@@ -177,7 +177,8 @@ fun SettingsScreen(
             val emergency = EmergencyNumber.resolve(settings.emergencyNumber, country)
             ValueRow(stringResource(R.string.adv_emergency),
                      if (settings.emergencyNumber.isNotEmpty()) stringResource(R.string.emergency_override, emergency)
-                     else stringResource(R.string.emergency_default, emergency, country?.uppercase() ?: "?"),
+                     else stringResource(R.string.emergency_default, emergency,
+                         country?.let { java.util.Locale("", it).displayCountry.ifEmpty { it.uppercase() } } ?: "?"),
                      onClick = onAdvanced)
 
             SectionHeader(R.string.settings_section_server)
