@@ -27,7 +27,7 @@ an Android companion app, and an optional self-hosted server.
 | Directory | What it is |
 |---|---|
 | [`watchapp/`](watchapp/) | Pebble app (C, SDK 4.x): background-worker monitoring (71 ms alarm-path launch, measured), on-watch alert ladder with acknowledged delivery + episode identity, monotonic detector clock (wall-jump immune), sustained-motion and own-vibration guards, suspension menu, carry mode, charging hold, HR-quality gate, not-worn and sensor-fault nags. Targets `emery`, `diorite`, `flint`, `gabbro`. |
-| [`android/`](android/) | Android companion (Kotlin): foreground service with Doze-proof exact-alarm heartbeat, watch watchdog + self-heal, full-screen alarm with cancel window, DataLogging spool recovery (alarms escalate even if the watch died out of range), store-app mode for the stock Pebble app, boot/update recovery, soak-test instrumentation with built-in drills, Telegram/server escalation, enrollment-by-code onboarding. SMS/call fallback is parked until a dedicated gateway flavor (Play Protect flags those permissions). |
+| [`android/`](android/) | Android companion (Kotlin): foreground service with Doze-proof exact-alarm heartbeat, watch watchdog + self-heal, full-screen alarm with cancel window, DataLogging spool recovery (alarms escalate even if the watch died out of range), sync-only liveness until the watch's reports arrive, boot/update recovery, soak-test instrumentation with built-in drills, Telegram/server escalation, enrollment-by-code onboarding. SMS/call fallback is parked until a dedicated gateway flavor (Play Protect flags those permissions). |
 | [`server/`](server/) | Self-hosted backend (Python/FastAPI, Docker): phone dead-man monitoring with auto all-clear on recovery, tiered escalation with delivery ACK + retry via Telegram/ntfy/email, idempotent alarm intake, leased command queue, web dashboard. Deployed on a Synology NAS behind HTTPS. |
 | [`docs/`](docs/) | Product plan, soak-test protocol, deployment guides ([VPS](docs/DEPLOY-VPS.md), [Synology](docs/DEPLOY-SYNOLOGY.md)), [Telegram bot setup](docs/TELEGRAM-BOT.md), review/optimization records, upstream-PR docs. |
 | [`openspec/`](openspec/) | Living specs ([OpenSpec](https://github.com/Fission-AI/openspec)): product requirements, detector ladder, watch↔phone protocol, escalation/dead-man, suspension, companion resilience. Changes flow through `/opsx:propose` → `/opsx:apply` → `/opsx:archive`. |
@@ -70,8 +70,8 @@ What the field testing taught, each with a fix and a test:
 - **Survivability** — phone reboot/app-update recovery, Doze-proof
   heartbeats, provisioning watchdog with self-heal, worker heap
   telemetry within the 10.5 KB worker budget, soak counters and drills
-  in the app, store-app mode when the stock Pebble app forwards no
-  worker telemetry, and diagnostics the wearer chooses to share
+  in the app, sync-only liveness until the Pebble app delivers the
+  watch's reports, and diagnostics the wearer chooses to share
   (redacted on the phone; the server can ask, never pull).
 - **Server hardening** — dead-man race fixes, idempotent alarm intake,
   leased commands, auto-resolve + all-clear when a silent phone
@@ -84,7 +84,9 @@ What the field testing taught, each with a fix and a test:
   [coredevices/mobileapp#378](https://github.com/coredevices/mobileapp/pull/378),
   which the companion now speaks). Until those land, [`dist/`](dist/)
   carries a patched dual-slot PebbleOS build exposing the raw HR-quality
-  metric; on the stock Pebble app the companion runs in store-app mode.
+  metric. The stock Pebble app forwards the watch's reports since
+  PebbleKit2 1.3.0; until the first report arrives the companion keeps
+  the watch alive-checked by its hourly sync.
 
 See [docs/SOAK-TEST.md](docs/SOAK-TEST.md) for the soak protocol and
 [docs/PLAN.md](docs/PLAN.md) for the roadmap, and

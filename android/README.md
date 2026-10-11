@@ -25,10 +25,11 @@ reboots and app updates.
 
 The PebbleKit Classic broadcast transport (`PebbleTransport`,
 `DataLogReceiver`) remains as an automatic fallback for older phone
-apps. On the stock Pebble app, which forwards no worker data yet, the
-companion runs in **store-app mode**
+apps. Until the first worker record has arrived (older Pebble apps
+forward none) the companion runs **sync-only**
 ([`PebbleAppPolicy`](app/src/main/java/org/cryomonitor/companion/PebbleAppPolicy.kt)):
 liveness comes from a brief hourly watchapp sync instead of records.
+There is no setting for this; the first record switches it for good.
 
 ## Escalation
 
@@ -65,7 +66,7 @@ name in sync with `applicationId`.
 | `PebbleKit2ListenerService`, `WatchLink`, `PebbleTransport` | watch transports |
 | `WorkerRecords`, `DataLogReceiver` | worker heartbeat records (PebbleKit2 + classic) |
 | `AlarmActivity`, `Escalator`, `ServerClient` | alarm UI, contact escalation, self-hosted backend |
-| `BootReceiver`, `SoakStats`, `PebbleAppPolicy` | reboot/update recovery, soak instrumentation, store-app mode |
+| `BootReceiver`, `SoakStats`, `PebbleAppPolicy` | reboot/update recovery, soak instrumentation, sync-only liveness policy |
 | `DebugActivity`, `LogActivity` | soak card, drills, sensor lab; log viewer, Share, Send to my server |
 | `DiagnosticsBundle` | the redacted log bundle behind Share and Send (range, manifest, soak report) |
 | `EnrollActivity`, `ContactsActivity`, `MainActivity` | enrollment by code, contacts, settings |
@@ -88,7 +89,7 @@ gradle test assembleSideloadRelease
 
 Release signing reads `keystore.properties` and `keystore/*.jks`, both
 git-ignored; without them the release build is unsigned. Unit tests
-(JVM, 36) cover the server client, reboot-drill verdicts, store-app
+(JVM, 36) cover the server client, reboot-drill verdicts, the liveness
 policy and worker-record parsing/replay protection; under AGP 9 `test`
 runs the debug variants.
 

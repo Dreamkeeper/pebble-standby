@@ -16,6 +16,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -102,7 +103,7 @@ fun HomeScreen(
             // ringing and nothing is already paused.
             var pauseSheet by remember { mutableStateOf(false) }
             if (verdict.state == Coverage.COVERED || verdict.state == Coverage.NEEDS_ATTENTION) {
-                TextButton(onClick = { pauseSheet = true }) {
+                FilledTonalButton(onClick = { pauseSheet = true }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.home_pause))
                 }
             }

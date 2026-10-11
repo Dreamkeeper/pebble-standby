@@ -477,8 +477,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
     private var storeSyncFaultNotified = false
     private var lastSyncLaunchDataT = -1L
 
-    fun storeMode(): Boolean = PebbleAppPolicy.storeMode(
-        PebbleAppPolicy.parse(settings.pebbleAppMode), settings.dlEverSeen)
+    fun storeMode(): Boolean = PebbleAppPolicy.storeMode(settings.dlEverSeen)
 
     private fun ackEpisode(ep: Int) {
         watchLink.send(mapOf(
@@ -1185,7 +1184,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
             suspLeft > 0 -> "SUSPENDED ${(suspLeft / 60000) + 1}m · "
             else -> ""
         }
-        val mode = if (storeMode()) " · store app" else ""
+        val mode = if (storeMode()) " · sync only" else ""
         return "$susp$link$wb$sync · $srv$mode"
     }
 

@@ -39,9 +39,8 @@ class SoakStats(context: Context) {
                 "downtime=${get(SoakStats.DOWNTIME_S) / 60}m " +
                 "link-faults=${get(SoakStats.LINK_FAULTS)} " +
                 "self-heals=${get(SoakStats.SELF_HEALS)}\n")
-            val storeTag = if (PebbleAppPolicy.storeMode(
-                    PebbleAppPolicy.parse(settings.pebbleAppMode), settings.dlEverSeen))
-                " (store-app mode)" else ""
+            val storeTag = if (PebbleAppPolicy.storeMode(settings.dlEverSeen))
+                " (sync-only: no worker records yet)" else ""
             append("worker: dl-records=${get(SoakStats.DL_RECORDS)}$storeTag " +
                 "faults=${get(SoakStats.WORKER_FAULTS)} " +
                 "sensor-faults=${get(SoakStats.SENSOR_FAULTS)} " +

@@ -8,7 +8,7 @@
     <!-- Home -->
     <string name="home_title">Standby</string>
     <string name="home_watch">Watch</string>
-    <string name="home_pause">Pause monitoring…</string>
+    <string name="home_pause">Pause monitoring</string>
     <string name="pause_title">Pause monitoring</string>
     <string name="pause_explain">For a swim, a sauna or a day without the watch. The watch pauses too when it can be reached, your server shows you as paused, and monitoring comes back on its own when you wear the watch again or at the time you choose.</string>
     <string name="pause_2h">For 2 hours</string>
@@ -23,7 +23,7 @@
     <string name="home_watch_not_linked">Not connected</string>
     <string name="home_watch_battery">%1$d%%, %2$s</string>
     <string name="home_watch_last_report">Last report %1$s</string>
-    <string name="home_watch_store_mode">Stock Pebble app: liveness by hourly sync</string>
+    <string name="home_watch_store_mode">No reports from the watch yet: checked by the hourly sync</string>
     <string name="home_people_count">%1$d contacts in %2$d tiers</string>
     <string name="home_people_none">No contacts yet</string>
     <string name="home_people_fallback">Phone-direct Telegram fallback only</string>
@@ -41,7 +41,7 @@
     <string name="settings_server">Your server</string>
     <string name="settings_server_sub">Enrol, change or leave your server</string>
     <string name="settings_pebble">Pebble app on this phone</string>
-    <string name="settings_pebble_sub">How the watch talks to this phone</string>
+    <string name="settings_pebble_sub">How the watch reports to this phone</string>
     <string name="settings_permissions">Let it run</string>
     <string name="settings_permissions_sub">Battery, lock screen, pop-ups, autostart</string>
     <string name="settings_contacts">Contacts &amp; safety net</string>
@@ -65,12 +65,10 @@
 
     <!-- Pebble app -->
     <string name="pebble_title">Pebble app on this phone</string>
-    <string name="pebble_mode">Mode</string>
-    <string name="pebble_mode_auto">Automatic</string>
-    <string name="pebble_mode_patched">Patched Pebble app (watch reports every minute)</string>
-    <string name="pebble_mode_store">Stock Pebble app (hourly sync)</string>
+            <string name="pebble_mode_patched">The Pebble app on this phone passes the watch\u2019s minute-by-minute reports to Standby, so a stopped watch is noticed within half an hour.</string>
+    <string name="pebble_mode_store">Nothing has arrived from the watch in the background yet. Until it does, Standby briefly opens the watchapp on the schedule below to confirm the watch is alive. Wear the watch for an hour with the watchapp closed; current Pebble apps deliver the reports on their own.</string>
     <string name="pebble_sync">Hourly sync interval, minutes (0 = off)</string>
-    <string name="pebble_explain">With the stock Pebble app the watch cannot report in the background, so Standby briefly opens the watchapp on a schedule to confirm it is alive.</string>
+    <string name="pebble_explain">The sync also refreshes the battery reading and delivers your settings to the watch. 0 turns it off once the watch reports on its own.</string>
 
     <!-- Permissions -->
     <string name="perm_title">Let it run</string>
@@ -219,11 +217,8 @@
     <string name="perm_summary_granted">%1$d of %2$d granted</string>
     <string name="perm_summary_missing">%1$d to grant</string>
     <string name="perm_summary_check">%1$d not tested</string>
-    <string name="pebble_mode_auto_explain">Standby works out which Pebble app this phone runs and adapts.</string>
-    <string name="pebble_mode_patched_short">Patched Pebble app</string>
-    <string name="pebble_mode_store_short">Stock Pebble app</string>
-    <string name="pebble_detected_patched">watch reports every minute</string>
-    <string name="pebble_detected_store">hourly sync</string>
+    <string name="pebble_detected_patched">The watch reports every minute</string>
+    <string name="pebble_detected_store">No reports from the watch yet, checked hourly</string>
 
     <!-- Detectors -->
     <string name="det_pulse">Pulse signal loss</string>

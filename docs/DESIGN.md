@@ -132,6 +132,24 @@ dashboard drops the 🔔 / ⏱ button prefixes too.
 
 ---
 
+### 3.5 Emphasis: which control for which action
+
+Material 3 gives five button emphases; Standby uses four, and the rule
+is about the *action*, not the screen:
+
+| Action | Control | Example |
+|---|---|---|
+| The one thing the verdict asks for | Filled button, full width on the card | "I'm OK", "Add a contact", "Resume monitoring" |
+| A deliberate secondary act that starts a flow | Filled tonal button, full width | "Pause monitoring", "Enrol", "Save" |
+| An alternative next to a primary | Outlined button | "Not now" beside "Set up" |
+| A low-stakes option inside a list, row or sheet | Text button | "Fire drill" on the people row, "Test" on a permission row |
+
+A text button is never the only way to start something: it reads as a
+link, and a wearer looking for "pause" scans for a button (owner
+feedback 2026-10-11). Destructive acts (delete a contact, cancel an
+alarm) keep the same emphasis as their peers and confirm with a
+dialog, never with colour alone. One filled button per screen.
+
 ## 4. Android companion — information architecture
 
 Four destinations plus two full-screen flows. Navigation: a bottom bar is
@@ -160,7 +178,10 @@ One screen, four cards, worst first:
 1. **Verdict card** — the state from §3.1 as a headline, one line of
    reason, one action button when the state is not Covered
    ("Add a contact", "Open Bluetooth", "Re-enrol", "Resume monitoring").
-   Covered shows nothing but the headline and "since 07:12".
+   Covered shows nothing but the headline and "since 07:12". Below the
+   card, "Pause monitoring" as a full-width tonal button (§3.5) whenever
+   nothing is ringing and nothing is paused; it opens the pause sheet
+   (2 h, 4 h, rest of today, tomorrow morning, a clock).
 2. **Watch card** — linked / not; battery with age ("82 %, 4 min ago");
    last worker data; paused state. Tapping opens Settings → Pebble app.
 3. **People card** — "3 contacts in 2 tiers · last drill 12 days ago",
@@ -194,9 +215,9 @@ skipping does not break the chain:
 1. **What this is.** The one-liner and the two guardrails: no automatic
    emergency call; loss of pulse *signal* also happens with a loose
    strap, which is why the watch asks first.
-2. **The watch.** Detects the Pebble app and whether the watchapp
-   reports; offers the sideload if not. Explains store-app mode in one
-   sentence when it applies.
+2. **The watch.** Detects the Pebble app and whether the watch's
+   reports arrive; until they do, says in one sentence that the watch is
+   checked by the hourly sync instead.
 3. **Your server.** Enrol with a code (default) or "I don't have a
    server" → explains what is lost (acknowledgements, tiers, dead-man)
    and offers the fallback bot setup.
@@ -248,7 +269,7 @@ Who is alerted
 Your server               cm.example.org · reachable
 This phone
   Let it run              4 of 6 granted · 1 to grant · 1 not tested
-  Pebble app              Automatic · patched app, reports every minute
+  Pebble app              The watch reports every minute
 More
   Advanced · Diagnostics · Set up again · Standby 0.7.0
 ```

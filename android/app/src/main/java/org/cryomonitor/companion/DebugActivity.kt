@@ -726,13 +726,12 @@ class DebugActivity : AppCompatActivity() {
             .filter { it.isNotBlank() && !it.startsWith("#") }
             .joinToString("\n")
         refreshRecovery()
-        val mode = PebbleAppPolicy.parse(settings.pebbleAppMode)
-        val storeNow = PebbleAppPolicy.storeMode(mode, settings.dlEverSeen)
+        val storeNow = PebbleAppPolicy.storeMode(settings.dlEverSeen)
         val syncMin = PebbleAppPolicy.effectiveSyncMin(storeNow, settings.watchSyncIntervalMin)
         s5Line.text = if (MonitorService.s5RecordCount == 0)
-            PebbleAppPolicy.describe(mode, settings.dlEverSeen, syncMin) +
-            (if (storeNow) "" else " No records yet: keep the watchapp CLOSED and " +
-                "wear the watch ≥1 h; the patched Pebble app delivers them in ~5 min batches.")
+            PebbleAppPolicy.describe(settings.dlEverSeen, syncMin) +
+            " Keep the watchapp CLOSED and wear the watch ≥1 h; the Pebble app " +
+            "delivers records in ~5-15 min batches."
         else {
             val age = (System.currentTimeMillis() -
                 MonitorService.s5LastRecT) / 1000

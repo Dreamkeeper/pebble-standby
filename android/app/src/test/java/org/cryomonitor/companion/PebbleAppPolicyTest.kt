@@ -8,19 +8,9 @@ import org.junit.Test
 class PebbleAppPolicyTest {
 
     @Test
-    fun `auto is store mode until a worker record has been seen`() {
-        assertTrue(PebbleAppPolicy.storeMode(PebbleAppPolicy.Mode.AUTO, dlEverSeen = false))
-        assertFalse(PebbleAppPolicy.storeMode(PebbleAppPolicy.Mode.AUTO, dlEverSeen = true))
-        assertTrue(PebbleAppPolicy.storeMode(PebbleAppPolicy.Mode.STORE, dlEverSeen = true))
-        assertFalse(PebbleAppPolicy.storeMode(PebbleAppPolicy.Mode.PATCHED, dlEverSeen = false))
-    }
-
-    @Test
-    fun `parse is lenient`() {
-        assertEquals(PebbleAppPolicy.Mode.STORE, PebbleAppPolicy.parse(" Store "))
-        assertEquals(PebbleAppPolicy.Mode.PATCHED, PebbleAppPolicy.parse("patched"))
-        assertEquals(PebbleAppPolicy.Mode.AUTO, PebbleAppPolicy.parse(null))
-        assertEquals(PebbleAppPolicy.Mode.AUTO, PebbleAppPolicy.parse("bogus"))
+    fun `sync-only until a worker record has been seen`() {
+        assertTrue(PebbleAppPolicy.storeMode(dlEverSeen = false))
+        assertFalse(PebbleAppPolicy.storeMode(dlEverSeen = true))
     }
 
     @Test
@@ -62,11 +52,9 @@ class PebbleAppPolicyTest {
     }
 
     @Test
-    fun `describe names the mode and the sync cadence`() {
-        val s = PebbleAppPolicy.describe(PebbleAppPolicy.Mode.AUTO, dlEverSeen = false, syncMin = 60)
-        assertTrue(s.startsWith("Pebble app mode: STORE"))
-        assertTrue(s.contains("every 60 min"))
-        assertTrue(PebbleAppPolicy.describe(PebbleAppPolicy.Mode.AUTO, dlEverSeen = true, syncMin = 60)
-            .startsWith("Pebble app mode: PATCHED"))
+    fun `describe names the cadence`() {
+        val s = PebbleAppPolicy.describe(dlEverSeen = false, syncMin = 60)
+        assertTrue(s, s.contains("every 60 min"))
+        assertTrue(PebbleAppPolicy.describe(dlEverSeen = true, syncMin = 60).contains("every minute"))
     }
 }

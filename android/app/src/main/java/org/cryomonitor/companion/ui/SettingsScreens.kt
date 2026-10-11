@@ -206,16 +206,9 @@ fun SettingsScreen(
     }
 }
 
-private fun pebbleModeValue(context: Context, settings: SettingsStore, storeMode: Boolean): String {
-    val mode = when (settings.pebbleAppMode) {
-        "patched" -> context.getString(R.string.pebble_mode_patched_short)
-        "store" -> context.getString(R.string.pebble_mode_store_short)
-        else -> context.getString(R.string.pebble_mode_auto)
-    }
-    val detected = if (storeMode) context.getString(R.string.pebble_detected_store)
-                   else context.getString(R.string.pebble_detected_patched)
-    return "$mode · $detected"
-}
+private fun pebbleModeValue(context: Context, settings: SettingsStore, storeMode: Boolean): String =
+    if (storeMode) context.getString(R.string.pebble_detected_store)
+    else context.getString(R.string.pebble_detected_patched)
 
 // ---- Your server ----
 
@@ -249,30 +242,25 @@ fun ServerScreen(settings: SettingsStore, onBack: () -> Unit, onEnrol: () -> Uni
 @Composable
 fun PebbleScreen(settings: SettingsStore, onBack: () -> Unit) {
     val context = LocalContext.current
-    var mode by remember { mutableStateOf(settings.pebbleAppMode) }
+    val facts by LiveState.facts.collectAsStateWithLifecycle()
     var sync by remember { mutableStateOf(settings.watchSyncIntervalMin.toString()) }
     SubScreen(stringResource(R.string.pebble_title), onBack) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.pebble_mode), style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("auto" to R.string.pebble_mode_auto, "patched" to R.string.pebble_mode_patched_short,
-                       "store" to R.string.pebble_mode_store_short).forEach { (v, label) ->
-                    FilterChip(selected = mode == v, onClick = { mode = v }, label = { Text(stringResource(label)) })
-                }
-            }
-            Text(stringResource(
-                when (mode) { "patched" -> R.string.pebble_mode_patched
-                              "store" -> R.string.pebble_mode_store
-                              else -> R.string.pebble_mode_auto_explain }),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // State first (DESIGN §4.5): what the phone observes, not a mode to pick.
+            Text(stringResource(if (facts.storeMode) R.string.pebble_detected_store
+                                else R.string.pebble_detected_patched),
+                 style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(if (facts.storeMode) R.string.pebble_mode_store
+                                else R.string.pebble_mode_patched),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider()
             OutlinedTextField(value = sync, onValueChange = { sync = it.filter { c -> c.isDigit() } },
                               label = { Text(stringResource(R.string.pebble_sync)) },
                               modifier = Modifier.fillMaxWidth(), singleLine = true)
             Text(stringResource(R.string.pebble_explain), style = MaterialTheme.typography.bodyMedium,
                  color = MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick = {
-                settings.pebbleAppMode = mode
                 settings.watchSyncIntervalMin = sync.toIntOrNull() ?: 60
                 context.startService(Intent(context, MonitorService::class.java)
                     .setAction(MonitorService.ACTION_HEARTBEAT_NOW))
