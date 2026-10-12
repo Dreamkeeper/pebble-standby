@@ -261,6 +261,7 @@ static CM_NOINLINE void reset_baselines(cm_core *c, uint32_t now_ms) {
   c->last_pulse_ms = now_ms;
   c->last_bpm_change_ms = now_ms;
   c->impact_phase = 0;
+  c->pulse_since_hold = 0; /* the ladder waits for a real reading */
 }
 
 static CM_NOINLINE void begin_detector_hold(cm_core *c) {
@@ -396,6 +397,7 @@ void cm_hr_feed(cm_core *c, uint16_t bpm, uint32_t now_ms) {
   /* A valid READING is evidence the watch is worn-ish (grace window). */
   c->last_pulse_ms = now_ms;
   c->ever_pulse = 1;
+  c->pulse_since_hold = 1;
   /* S4 field finding (2026-08-27, Time 2): off-body the firmware keeps
    * serving the LAST computed bpm with fresh events — bit-identical for
    * many minutes across flat/face-down/fabric. A living wearer's raw
@@ -522,6 +524,14 @@ static void tick_pulse(cm_core *c) {
   if (!c->cfg.enabled[CM_DET_PULSE] || !c->cfg.hr_available || !c->ever_pulse) return;
   if (c->stage != CM_STAGE_NONE || c->suspended) return;
   if (c->pulse_snoozed && (int32_t)(c->pulse_snooze_until_ms - c->now_ms) > 0) return;
+  /* Not one reading since the last hold ended (resume, expiry, unplug):
+   * the watch is on a wet or loose wrist, or not on a wrist at all. The
+   * baselines were reset at that moment, so without this the silence
+   * reads as a lost pulse (field 2026-10-12 07:30: shower, SELECT to
+   * resume, no reading for six minutes, "No pulse signal" asked the
+   * moment the wearer stood still for the alarm clock). The not-worn and
+   * sensor nags own that silence until the first reading arrives. */
+  if (!c->pulse_since_hold) return;
 
   uint32_t since_pulse = elapsed(c->now_ms, c->last_pulse_ms);
   uint32_t since_change = elapsed(c->now_ms, c->last_bpm_change_ms);

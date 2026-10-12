@@ -245,6 +245,7 @@ typedef struct {
   uint8_t  checkin_reminded;
   uint8_t  notworn_nagged;
   uint8_t  sensor_nagged;        /* re-armed by bpm change, never by motion */
+  uint8_t  pulse_since_hold;     /* a valid reading since the last hold ended */
   uint8_t  nonmotion_armed;
   uint8_t  suspended;
   uint8_t  suspend_auto_resume;

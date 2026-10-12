@@ -714,6 +714,39 @@ static void test_suspension_expiry(void) {
 /* Resume needs BOTH halves: readings without motion never resume (the
  * phantom-press case), and motion whose pulse evidence has gone stale
  * never resumes either (the bag-ride case). */
+/* Field 2026-10-12 07:30: shower, UP to suspend, SELECT to resume with the
+ * watch back on a wet wrist, no reading for six minutes, then the alarm
+ * clock made the wearer stand still and the pulse ladder asked "No pulse
+ * signal". Silence since a hold ended is the nags' business, not the
+ * ladder's, until one reading proves the sensor sees a wrist. */
+static void test_resume_without_readings_nags_not_ladder(void) {
+  g_test = "resume_without_readings_nags_not_ladder";
+  cm_config cfg = test_cfg();
+  setup(&cfg);
+  warmup();
+
+  cm_suspend(&core, 300, 1, now_ms);
+  drain();
+  log_reset();
+  cm_resume(&core, now_ms);                 /* SELECT: watch back on */
+  drain();
+  CHECK(count_type(CM_ACT_AUTO_RESUMED) == 1);
+  log_reset();
+
+  for (int i = 0; i < 360; i++) sec_moving(); /* getting ready, no readings */
+  secs_still(240);                             /* the alarm clock: standing still */
+  CHECK(count_type(CM_ACT_HR_BURST_ON) == 0);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+  CHECK(count_type(CM_ACT_ALARM) == 0);
+
+  /* the first reading re-arms the ladder: a later loss is a real loss */
+  log_reset();
+  for (int i = 0; i < 60; i++) sec_still_hr((uint16_t)(70 + (i & 1)));
+  log_reset();
+  secs_still(200);
+  CHECK(count_type(CM_ACT_HR_BURST_ON) == 1);
+}
+
 static void test_suspension_pulse_does_not_resume(void) {
   g_test = "suspension_pulse_does_not_resume";
   cm_config cfg = test_cfg();
@@ -1378,6 +1411,7 @@ int main(void) {
   test_scheduled_checkin();
   test_suspension_blocks_and_autoresumes();
   test_suspension_expiry();
+  test_resume_without_readings_nags_not_ladder();
   test_suspension_pulse_does_not_resume();
   test_suspension_grace_blocks_instant_resume();
   test_sensor_fault_fires_when_moving_without_pulse();
