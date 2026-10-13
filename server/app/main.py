@@ -32,7 +32,42 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
 log = logging.getLogger("cryomonitor")
 
-app = FastAPI(title="Standby Server", version="0.3.4")
+# The API description is a map for attackers as much as for developers:
+# off in production unless asked for (hardening 2026-10-13, harden-ci 14).
+_API_DOCS = os.environ.get("CM_API_DOCS") == "1"
+app = FastAPI(title="Standby Server", version="0.3.5",
+              docs_url="/docs" if _API_DOCS else None,
+              redoc_url="/redoc" if _API_DOCS else None,
+              openapi_url="/openapi.json" if _API_DOCS else None)
+
+
+# Response hardening for every route (hardening 2026-10-13). The policy
+# allows only same-origin scripts (htmx and dashboard.js, no eval) and
+# inline styles (the base template's stylesheet and a few style
+# attributes); nothing may frame the dashboard; forms post only here.
+# HSTS belongs to whatever terminates TLS (DSM or Caddy), not here.
+_SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; connect-src 'self'; form-action 'self'; "
+        "frame-ancestors 'none'; base-uri 'none'; object-src 'none'"),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+}
+
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    resp = await call_next(request)
+    for k, v in _SECURITY_HEADERS.items():
+        resp.headers.setdefault(k, v)
+    # Dashboard pages show wearer state and operator forms: never cached.
+    if request.url.path.startswith("/ui") and not request.url.path.startswith("/ui/static/"):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
 app.include_router(wearers_router)
 app.include_router(diagnostics.router)
 app.include_router(ui.router)

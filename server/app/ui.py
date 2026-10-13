@@ -125,6 +125,12 @@ def htmx():
                         media_type="application/javascript")
 
 
+@router.get("/static/dashboard.js")
+def dashboard_js():
+    return FileResponse(_HERE / "static" / "dashboard.js",
+                        media_type="application/javascript")
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {

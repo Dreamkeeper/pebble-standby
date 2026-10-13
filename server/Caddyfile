@@ -5,6 +5,8 @@
 
 {$CM_DOMAIN} {
 	encode gzip
+	# HSTS belongs to the TLS terminator; the app sets the other headers.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	reverse_proxy monitor:8080
 }
 

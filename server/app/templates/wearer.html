@@ -4,11 +4,12 @@
   {% if not wearer.enabled %}<span class="state st-disabled">disabled</span>{% endif %}
 </h2>
 
-{# Live section polls like the fleet page, but pauses while the operator is
-   mid-interaction (typing a resolve reason / picking an option) so the swap
-   never eats their input. #}
+{# Live section polls like the fleet page; dashboard.js cancels the swap
+   while the operator is mid-interaction (typing a resolve reason / picking
+   an option) so it never eats their input. (An hx-trigger filter would do
+   the same but needs eval, which the CSP forbids.) #}
 <div hx-get="/ui/fragments/wearer/{{ wearer.id }}"
-     hx-trigger="every {{ refresh_s }}s [!document.activeElement || !document.activeElement.closest('#live')]"
+     hx-trigger="every {{ refresh_s }}s"
      hx-swap="innerHTML" id="live">
   {% include "_wearer_live.html" %}
 </div>
