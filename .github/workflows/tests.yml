@@ -45,8 +45,11 @@ jobs:
       - name: Install (hash-checked)
         working-directory: server
         run: |
-          # --require-hashes for requirements.txt arrives with the server-pins PR
-          python -m pip install -r requirements.txt -r requirements-dev.txt
+          # Two invocations until the server-pins PR lands the hashed
+          # requirements.txt: a hashed file switches pip into
+          # --require-hashes mode for everything in the same command.
+          python -m pip install -r requirements.txt
+          python -m pip install --require-hashes -r requirements-dev.txt
       - name: Test
         working-directory: server
         run: python -m pytest -q -p no:cacheprovider --junitxml=/tmp/junit.xml
@@ -66,7 +69,9 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: platforms;android-37
+          # SDK 37 ships as a minor-versioned platform: the directory is
+          # android-37.0 and so is the sdkmanager package name.
+          packages: platforms;android-37.0
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           gradle-version: "9.6.1"
