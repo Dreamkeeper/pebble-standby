@@ -54,7 +54,8 @@ jobs:
         working-directory: server
         run: python -m pytest -q -p no:cacheprovider --junitxml=/tmp/junit.xml
       - name: Prove tests ran
-        run: python3 -c "import xml.etree.ElementTree as E; n=int(E.parse('/tmp/junit.xml').getroot().get('tests') or 0); print(n, 'tests'); assert n > 50"
+        # pytest writes <testsuites><testsuite tests=N>: count the suites' tests
+        run: python3 -c "import xml.etree.ElementTree as E; n=sum(int(t.get('tests') or 0) for t in E.parse('/tmp/junit.xml').getroot().iter('testsuite')); print(n, 'tests'); assert n > 50"
 
   android:
     name: companion (JVM unit tests)
