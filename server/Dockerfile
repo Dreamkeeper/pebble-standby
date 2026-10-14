@@ -8,11 +8,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Debian security updates at build time: the pinned base image ages, and
+# the CI image scan fails on fixed OS CVEs otherwise (2026-10-14: pcre2,
+# openssl). Only the package index and the upgrade; no new packages.
+RUN apt-get update && apt-get -y --no-install-recommends upgrade     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /srv
 COPY requirements.txt .
 # Every package, direct and transitive, must match a hash in the lock.
 RUN pip install --require-hashes -r requirements.txt
 COPY app ./app
+# A build context on DSM carries owner-only ACL modes into the image: the
+# code must be readable by UID 10001 (field 2026-10-14: PermissionError on
+# app/__init__.py took the server down for six minutes).
+RUN chmod -R a+rX /srv/app
 
 # The data directory is a bind mount owned by the same UID on the host
 # (see docs/DEPLOY-SYNOLOGY.md). The code is root-owned and read-only to
