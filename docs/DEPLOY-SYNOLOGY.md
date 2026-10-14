@@ -24,7 +24,16 @@ sudo; an Alpine helper container does the chown):
 
 ```bash
 P=/volume2/docker-ssd/cryomonitor
-/usr/local/bin/docker run --rm -v $P/data:/d alpine chown -R 10001:10001 /d
+/usr/local/bin/docker run --rm -v $P/data:/d alpine sh -c "chown -R 10001:10001 /d && chmod -R u+rwX /d && chmod 770 /d"
+```
+
+The `chmod` is not optional: DSM manages shared folders with its own
+ACLs and shows them to containers with a POSIX mode of `000`, so a
+`chown` alone leaves the directory unreadable to the new owner (field
+2026-10-14). Verify before starting the service:
+
+```bash
+/usr/local/bin/docker run --rm -v $P/data:/d --user 10001:10001 alpine sh -c "touch /d/.w && echo writable && rm /d/.w"
 ```
 
 The API description (`/openapi.json`, `/docs`) is off unless the
