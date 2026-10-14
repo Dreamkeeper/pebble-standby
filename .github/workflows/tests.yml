@@ -1,0 +1,111 @@
+# Standby CI: the three test suites on every push and pull request, plus a
+# Trivy scan of the server image. Every action is pinned by commit SHA
+# (harden-ci step 10); the token is read-only (step 9). Versions and SHAs
+# were resolved from the GitHub API on 2026-10-13, each release at least
+# seven days old at that date.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  watchapp:
+    name: watch core (host tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and run the detector tests
+        working-directory: watchapp/tests
+        run: |
+          gcc -Wall -Wextra -Werror -std=c11 -I../src/core -o /tmp/test_runner test_detectors.c ../src/core/detectors.c
+          /tmp/test_runner | tee /tmp/out.txt
+          grep -E '^[0-9]+ checks, 0 failures$' /tmp/out.txt
+
+  server:
+    name: server (pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install (hash-checked)
+        working-directory: server
+        run: |
+          # Two invocations until the server-pins PR lands the hashed
+          # requirements.txt: a hashed file switches pip into
+          # --require-hashes mode for everything in the same command.
+          python -m pip install -r requirements.txt
+          python -m pip install --require-hashes -r requirements-dev.txt
+      - name: Test
+        working-directory: server
+        run: python -m pytest -q -p no:cacheprovider --junitxml=/tmp/junit.xml
+      - name: Prove tests ran
+        # pytest writes <testsuites><testsuite tests=N>: count the suites' tests
+        run: python3 -c "import xml.etree.ElementTree as E; n=sum(int(t.get('tests') or 0) for t in E.parse('/tmp/junit.xml').getroot().iter('testsuite')); print(n, 'tests'); assert n > 50"
+
+  android:
+    name: companion (JVM unit tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          # SDK 37 ships as a minor-versioned platform: the directory is
+          # android-37.0 and so is the sdkmanager package name.
+          packages: platforms;android-37.0
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: "9.6.1"
+      - name: Unit tests
+        working-directory: android
+        run: gradle --no-daemon testSideloadDebugUnitTest
+      - name: Prove tests ran
+        run: |
+          n=$(grep -ho 'tests="[0-9]*"' android/app/build/test-results/testSideloadDebugUnitTest/*.xml | grep -o '[0-9]*' | paste -sd+ | bc)
+          echo "$n tests"; test "$n" -gt 40
+
+  image:
+    name: server image (build + Trivy)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        working-directory: server
+        run: docker build -t standby-server:ci .
+      - name: Scan the Dockerfile and compose files
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: server
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+      - name: Scan the built image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: standby-server:ci
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
