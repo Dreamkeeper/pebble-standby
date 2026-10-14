@@ -251,7 +251,8 @@ was done; everything that needs a human gate is an accepted risk.
 - No image signing, SBOM, DAST, license check, IaC scan (7 in part, 10,
   11). One self-hosted node that builds its own image.
 - Binaries stay in `dist/` (8) until Releases are set up.
-- Account protection (9) and Android cleartext (12): open questions.
+- Account protection (9): TOTP today, passkey advised (owner, 2026-10-14).
+- Android cleartext (12): **closed 2026-10-14**, companion preview 8 accepts plain http only on the Tailscale range, *.ts.net, RFC 1918 ranges, loopback and local names (`ServerUrlPolicy`, enforced in both URL inputs and in the client).
 
 **Before → after**
 

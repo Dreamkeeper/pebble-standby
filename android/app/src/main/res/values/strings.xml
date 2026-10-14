@@ -191,6 +191,7 @@
     <string name="enrol_code">Enrolment code</string>
     <string name="enrol_button">Enrol</string>
     <string name="enrol_url_error">Enter the full https:// address</string>
+    <string name="server_url_cleartext_error">Plain http:// works only on your Tailscale network (100.64.x.x or a name ending in .ts.net) or your home network (10.x, 172.16–31.x, 192.168.x, names ending in .local). Anywhere else, use https://.</string>
     <string name="enrol_code_error">Codes look like XXXX-XXXX</string>
     <string name="enrol_contacting">Contacting your server…</string>
     <string name="enrol_done">Enrolled. This phone now watches over %1$s.</string>

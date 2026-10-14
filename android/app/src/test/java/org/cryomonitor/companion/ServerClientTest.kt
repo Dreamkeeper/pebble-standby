@@ -13,13 +13,17 @@ import org.junit.Test
 class ServerClientTest {
 
     private lateinit var server: MockWebServer
+
+    /** MockWebServer names the host after the machine on Windows, which the
+     *  cleartext policy rightly refuses; loopback by address is allowed. */
+    private fun base() = "http://127.0.0.1:${server.port}/"
     private lateinit var client: ServerClient
 
     @Before
     fun setUp() {
         server = MockWebServer()
         server.start()
-        client = ServerClient({ server.url("/").toString().trimEnd('/') },
+        client = ServerClient({ base().trimEnd('/') },
                               { "unit-test-token" })
     }
 
@@ -32,7 +36,7 @@ class ServerClientTest {
     fun `enroll success returns token and wearer id`() {
         server.enqueue(MockResponse().setBody(
             """{"token":"tok123","wearer_id":"alice"}"""))
-        val r = client.enroll(server.url("/").toString(), "ABCD-EFGH")
+        val r = client.enroll(base(), "ABCD-EFGH")
         assertTrue(r is ServerClient.EnrollResult.Success)
         r as ServerClient.EnrollResult.Success
         assertEquals("tok123", r.token)
@@ -47,21 +51,21 @@ class ServerClientTest {
     @Test
     fun `enroll distinguishes burned code from malformed and rate limit`() {
         server.enqueue(MockResponse().setResponseCode(410))
-        assertTrue(client.enroll(server.url("/").toString(), "AAAA-AAAA")
+        assertTrue(client.enroll(base(), "AAAA-AAAA")
             is ServerClient.EnrollResult.CodeRejected)
 
         server.enqueue(MockResponse().setResponseCode(422))
-        assertTrue(client.enroll(server.url("/").toString(), "nope")
+        assertTrue(client.enroll(base(), "nope")
             is ServerClient.EnrollResult.Malformed)
 
         server.enqueue(MockResponse().setResponseCode(429))
-        assertTrue(client.enroll(server.url("/").toString(), "AAAA-AAAA")
+        assertTrue(client.enroll(base(), "AAAA-AAAA")
             is ServerClient.EnrollResult.RateLimited)
     }
 
     @Test
     fun `enroll against dead server reports unreachable`() {
-        val dead = server.url("/").toString()
+        val dead = base()
         server.shutdown()
         assertTrue(client.enroll(dead, "AAAA-AAAA")
             is ServerClient.EnrollResult.Unreachable)

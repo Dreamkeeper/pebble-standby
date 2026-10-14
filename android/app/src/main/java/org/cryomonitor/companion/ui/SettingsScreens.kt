@@ -58,6 +58,7 @@ import org.cryomonitor.companion.MonitorService
 import org.cryomonitor.companion.PermissionChecks
 import org.cryomonitor.companion.R
 import org.cryomonitor.companion.ServerClient
+import org.cryomonitor.companion.ServerUrlPolicy
 import org.cryomonitor.companion.SettingsStore
 import org.cryomonitor.companion.SoakStats
 import org.cryomonitor.companion.WatchConfig
@@ -408,14 +409,23 @@ fun AdvancedScreen(settings: SettingsStore, onBack: () -> Unit) {
             Text(stringResource(R.string.adv_manual_header), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.adv_manual_explain), style = MaterialTheme.typography.bodyMedium,
                  color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(value = url, onValueChange = { url = it },
+            var urlError by remember { mutableStateOf<String?>(null) }
+            OutlinedTextField(value = url, onValueChange = { url = it; urlError = null },
                 label = { Text(stringResource(R.string.adv_server_url)) },
+                isError = urlError != null, supportingText = urlError?.let { { Text(it) } },
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedTextField(value = token, onValueChange = { token = it },
                 label = { Text(stringResource(R.string.adv_api_token)) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
 
             Button(onClick = {
+                val u = url.trim()
+                if (u.isNotEmpty()) when (ServerUrlPolicy.check(u)) {
+                    null -> {}
+                    ServerUrlPolicy.Problem.CLEARTEXT_NOT_PRIVATE -> {
+                        urlError = context.getString(R.string.server_url_cleartext_error); return@Button }
+                    else -> { urlError = context.getString(R.string.enrol_url_error); return@Button }
+                }
                 settings.wearerName = name.trim().ifEmpty { "the wearer" }
                 settings.emergencyNumber = emergency
                 settings.telegramBotToken = tgToken.trim()

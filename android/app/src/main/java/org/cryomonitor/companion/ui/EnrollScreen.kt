@@ -28,6 +28,7 @@ import kotlinx.coroutines.withContext
 import org.cryomonitor.companion.MonitorService
 import org.cryomonitor.companion.R
 import org.cryomonitor.companion.ServerClient
+import org.cryomonitor.companion.ServerUrlPolicy
 import org.cryomonitor.companion.SettingsStore
 
 /**
@@ -64,7 +65,12 @@ fun EnrollForm(settings: SettingsStore, onEnrolled: () -> Unit) {
         Button(enabled = !busy, onClick = {
             val u = url.trim().trimEnd('/')
             val c = code.trim()
-            if (!u.startsWith("http")) { urlError = context.getString(R.string.enrol_url_error); return@Button }
+            when (ServerUrlPolicy.check(u)) {
+                null -> {}
+                ServerUrlPolicy.Problem.CLEARTEXT_NOT_PRIVATE -> {
+                    urlError = context.getString(R.string.server_url_cleartext_error); return@Button }
+                else -> { urlError = context.getString(R.string.enrol_url_error); return@Button }
+            }
             if (c.replace("-", "").length != 8) { codeError = context.getString(R.string.enrol_code_error); return@Button }
             busy = true; status = context.getString(R.string.enrol_contacting)
             scope.launch {

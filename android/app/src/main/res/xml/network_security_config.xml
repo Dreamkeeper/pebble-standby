@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Cleartext HTTP is permitted because the recommended deployment reaches
-  the self-hosted server over a Tailscale/WireGuard tunnel (100.64/10) or
-  the LAN, where TLS terminates at the tunnel. If you expose the server
-  publicly, use HTTPS (DSM reverse proxy + Let's Encrypt) — the app makes
-  no attempt to downgrade https:// URLs.
+  Cleartext stays permitted at the platform level because this file cannot
+  express address ranges, and the recommended tailnet deployment reaches the
+  server by its Tailscale address or MagicDNS name over plain HTTP. The
+  actual rule lives in ServerUrlPolicy (owner decision 2026-10-14): http://
+  is accepted only for the Tailscale range 100.64.0.0/10 and *.ts.net, the
+  RFC 1918 home-network ranges, loopback and *.local / *.lan names; every
+  other host must be https://. Both URL inputs and ServerClient enforce it.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true" />

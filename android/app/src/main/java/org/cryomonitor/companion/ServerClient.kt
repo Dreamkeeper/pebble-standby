@@ -296,6 +296,12 @@ class ServerClient(
             return -1 to ""
         }
         val url = urlProvider().trimEnd('/') + path
+        if (ServerUrlPolicy.check(urlProvider()) != null) {
+            // Defence in depth: the inputs refuse such a URL already.
+            lastResult = "plain http is allowed only on the tailnet or your home network"
+            CmLog.w(TAG, "refusing $method $url: $lastResult")
+            return -1 to ""
+        }
         val builder = Request.Builder().url(url)
             .header("Authorization", "Bearer ${tokenProvider()}")
         when (method) {
