@@ -45,11 +45,7 @@ jobs:
       - name: Install (hash-checked)
         working-directory: server
         run: |
-          # Two invocations until the server-pins PR lands the hashed
-          # requirements.txt: a hashed file switches pip into
-          # --require-hashes mode for everything in the same command.
-          python -m pip install -r requirements.txt
-          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install --require-hashes -r requirements.txt -r requirements-dev.txt
       - name: Test
         working-directory: server
         run: python -m pytest -q -p no:cacheprovider --junitxml=/tmp/junit.xml
