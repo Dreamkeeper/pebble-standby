@@ -35,7 +35,7 @@ log = logging.getLogger("cryomonitor")
 # The API description is a map for attackers as much as for developers:
 # off in production unless asked for (hardening 2026-10-13, harden-ci 14).
 _API_DOCS = os.environ.get("CM_API_DOCS") == "1"
-app = FastAPI(title="Standby Server", version="0.3.5",
+app = FastAPI(title="Standby Server", version="0.3.6",
               docs_url="/docs" if _API_DOCS else None,
               redoc_url="/redoc" if _API_DOCS else None,
               openapi_url="/openapi.json" if _API_DOCS else None)

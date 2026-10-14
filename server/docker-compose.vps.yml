@@ -30,7 +30,8 @@ services:
       NTFY_BEHIND_PROXY: "true"
 
   caddy:
-    image: caddy:2
+    # v2.11.7 (2026-10-03), digest from Docker Hub on 2026-10-13.
+    image: caddy:2.11.7@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772
     restart: unless-stopped
     depends_on:
       - monitor

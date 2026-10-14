@@ -5,6 +5,16 @@ services:
   monitor:
     build: .
     restart: unless-stopped
+    # Runs as UID 10001 (see the Dockerfile): the data directory must be
+    # owned by that UID on the host, see docs/DEPLOY-SYNOLOGY.md step 1.
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
     ports:
       - "8080:8080"
     environment:
@@ -59,7 +69,9 @@ services:
 
   # Optional self-hosted push server (contacts subscribe to their topic)
   ntfy:
-    image: binwiederhier/ntfy
+    # v2.28.0 (2026-08-27), digest from Docker Hub on 2026-10-13; the two
+    # newer releases were under seven days old at that date.
+    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
     command: serve
     restart: unless-stopped
     ports:

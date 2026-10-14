@@ -1,0 +1,6 @@
+# Nothing but the app and its lock goes into the image.
+*
+!app/
+!requirements.txt
+app/**/__pycache__/
+app/**/*.pyc

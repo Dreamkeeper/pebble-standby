@@ -15,6 +15,22 @@ mkdir -p /volume1/docker/cryomonitor
 # then upload the server/ directory contents there
 ```
 
+### Data directory ownership (server 0.3.6 and later)
+
+The container runs as UID 10001, not root, and its root filesystem is
+read-only. The bind-mounted `data/` directory must therefore belong to
+that UID on the NAS. Once, before the first start of 0.3.6 (DSM gives no
+sudo; an Alpine helper container does the chown):
+
+```bash
+P=/volume2/docker-ssd/cryomonitor
+/usr/local/bin/docker run --rm -v $P/data:/d alpine chown -R 10001:10001 /d
+```
+
+The API description (`/openapi.json`, `/docs`) is off unless the
+service gets `CM_API_DOCS=1`; uptime checks should use
+`/api/v1/health`.
+
 ## 2. Configure secrets
 
 ```bash
