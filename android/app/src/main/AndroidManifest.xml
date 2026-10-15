@@ -28,8 +28,13 @@
          no-ops without the grant. Restore in a dedicated gateway flavor
          when the SMS fallback ships for real (M4). -->
 
+    <!-- No cloud or device-to-device backup: the server token, the
+         fallback bot token and the contacts' details must not leave the
+         phone through Google's backup (hardening 2026-10-15). Enrolment
+         takes a minute on a new phone. -->
     <application
         android:name=".CmApp"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="Standby"
         android:networkSecurityConfig="@xml/network_security_config"
