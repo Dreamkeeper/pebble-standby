@@ -248,6 +248,17 @@ watch confirms it.
   another app is on the wearer's screen, and sends it when the watchapp
   opens
 
+#### Scenario: The phone wrongly believes the watchapp is open
+- **WHEN** a setting is sent while the phone still holds the watchapp as
+  open, and the Pebble app answers that a different app is open
+- **THEN** the phone records the watchapp as closed, requests a launch
+  as in the closed case, and the setting is sent when the watchapp opens
+
+#### Scenario: The pending mark clears while the page is open
+- **WHEN** the watch acknowledges a setting while its page is on screen
+- **THEN** the page drops the pending mark without being reopened, and
+  shows the value the watch kept
+
 ### Requirement: The phone can suspend and resume the watch
 `PMSG_SUSPEND_SET` (phone → watch) SHALL carry the suspension length in
 minutes in SECONDS (0 = resume now) and the auto-resume flag in

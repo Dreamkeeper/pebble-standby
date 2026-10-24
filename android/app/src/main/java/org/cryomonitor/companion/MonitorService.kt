@@ -378,7 +378,11 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 watchLink.send(mapOf(
                     PebbleTransport.KEY_MSG_TYPE to Protocol.PMSG_CONFIG_SET,
                     PebbleTransport.KEY_DETECTOR to f.id,
-                    PebbleTransport.KEY_SECONDS to v))
+                    PebbleTransport.KEY_SECONDS to v)) {
+                    // The watchapp was not open after all: launch it, and
+                    // onWatchappOpened re-sends what is still pending.
+                    selfHealLaunch("settings changed, watchapp not open")
+                }
                 delay(150)
             }
         }

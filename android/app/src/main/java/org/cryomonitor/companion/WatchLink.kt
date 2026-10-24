@@ -118,7 +118,13 @@ class WatchLink(
     @Volatile var watchappOpen = false
         private set
 
-    fun send(data: Map<Int, Any>) {
+    /**
+     * [onWatchappGone] runs when the Pebble app reports our watchapp is not
+     * the one open (FailedDifferentAppOpen) although [watchappOpen] said it
+     * was: the closed callback was missed (field 2026-10-24, a setting stayed
+     * pending). The flag is corrected before the callback runs.
+     */
+    fun send(data: Map<Int, Any>, onWatchappGone: (() -> Unit)? = null) {
         scope.launch {
             // Per-watch result map; null = the phone app has no PK2 at all.
             val results: Map<WatchIdentifier, TransmissionResult>? = runCatching {
@@ -141,8 +147,14 @@ class WatchLink(
                     CmLog.d(TAG, "pk2 rejected ($results) — classic fallback")
                     classic.send(data)
                 }
-                else -> // watch-state failure: authoritative, don't double-send
+                else -> { // watch-state failure: authoritative, don't double-send
                     CmLog.w(TAG, "watch send failed: $results")
+                    if (results.values.any { it is TransmissionResult.FailedDifferentAppOpen }) {
+                        if (watchappOpen) CmLog.i(TAG, "pk2: watchapp closed callback was missed")
+                        watchappOpen = false
+                        onWatchappGone?.invoke()
+                    }
+                }
             }
         }
     }

@@ -137,6 +137,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val facts by LiveState.facts.collectAsStateWithLifecycle()
     val tick = onResumeTick()
+    val ack = onConfigAckTick()
     var revision by remember { mutableIntStateOf(0) }
 
     // People summary for the contacts row
@@ -152,7 +153,7 @@ fun SettingsScreen(
     }
 
     SubScreen(stringResource(R.string.settings_title), onBack) {
-        androidx.compose.runtime.key(revision, tick) {
+        androidx.compose.runtime.key(revision, tick, ack) {
             SectionHeader(R.string.settings_section_detectors)
             Detector.entries.forEach { d ->
                 val enabled = cfg.detectorEnabled(d.enabledField)

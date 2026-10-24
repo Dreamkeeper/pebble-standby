@@ -1,7 +1,10 @@
 package org.cryomonitor.companion.ui
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +18,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,6 +97,29 @@ fun humanMinutes(min: Int): String = when {
     else -> "$min min"
 }
 
+/**
+ * Recompose when the watch acknowledges a setting: the service broadcasts
+ * CONFIG_ACKED after every PMSG_CONFIG_ACK, and a page that stays open
+ * must drop its "pending" mark then, not at the next visit (field
+ * 2026-10-24: a knob read "pending" minutes after the ack).
+ */
+@Composable
+fun onConfigAckTick(): Int {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) { tick++ }
+        }
+        val filter = IntentFilter(MonitorService.ACTION_CONFIG_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33)
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else @Suppress("UnspecifiedRegisterReceiverFlag") context.registerReceiver(receiver, filter)
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return tick
+}
+
 /** Tell the service a value changed so it reaches the watch (design D5). */
 fun notifyWatchConfigChanged(context: Context) {
     context.startService(Intent(context, MonitorService::class.java)
@@ -102,6 +129,7 @@ fun notifyWatchConfigChanged(context: Context) {
 @Composable
 fun DetectorScreen(d: Detector, cfg: WatchConfig, onBack: () -> Unit) {
     val context = LocalContext.current
+    val ack = onConfigAckTick()
     var enabled by remember { mutableStateOf(cfg.detectorEnabled(d.enabledField)) }
     SubScreen(stringResource(d.title), onBack) {
         Card(Modifier.padding(16.dp).fillMaxWidth(),
@@ -112,7 +140,7 @@ fun DetectorScreen(d: Detector, cfg: WatchConfig, onBack: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(if (enabled) R.string.state_on else R.string.state_off),
                          style = MaterialTheme.typography.titleLarge)
-                    if (cfg.isPending(d.enabledField)) Text(stringResource(R.string.state_pending_long),
+                    if (ack >= 0 && cfg.isPending(d.enabledField)) Text(stringResource(R.string.state_pending_long),
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = enabled, onCheckedChange = {
@@ -132,14 +160,16 @@ fun DetectorScreen(d: Detector, cfg: WatchConfig, onBack: () -> Unit) {
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
         Text(stringResource(R.string.det_knobs_header), style = MaterialTheme.typography.titleMedium,
              modifier = Modifier.padding(horizontal = 16.dp))
-        d.knobs.forEach { k -> KnobRow(k, cfg) }
+        d.knobs.forEach { k -> KnobRow(k, cfg, ack) }
     }
 }
 
 @Composable
-fun KnobRow(k: Detector.Knob, cfg: WatchConfig) {
+fun KnobRow(k: Detector.Knob, cfg: WatchConfig, ack: Int = 0) {
     val context = LocalContext.current
     var value by remember { mutableIntStateOf(cfg.get(k.field)) }
+    // A rejected value comes back as the one in force: follow the watch.
+    if (ack > 0) remember(ack) { value = cfg.get(k.field); ack }
     val f = k.field
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,20 +201,21 @@ fun formatKnob(k: Detector.Knob, v: Int): String = when (k.unit) {
 /** "When it asks": the ladder timings and the night hours. */
 @Composable
 fun WhenItAsksScreen(cfg: WatchConfig, onBack: () -> Unit) {
+    val ack = onConfigAckTick()
     SubScreen(stringResource(R.string.when_title), onBack) {
         Text(stringResource(R.string.when_intro), style = MaterialTheme.typography.bodyMedium,
              color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
-        KnobRow(Detector.Knob(Field.CHECKIN_UI_S, R.string.knob_time_to_answer, Detector.Unit.SECONDS, 5), cfg)
-        KnobRow(Detector.Knob(Field.COUNTDOWN_S, R.string.knob_countdown, Detector.Unit.SECONDS, 5), cfg)
-        KnobRow(Detector.Knob(Field.COUNTDOWN_IMPACT_S, R.string.knob_impact_countdown, Detector.Unit.SECONDS, 5), cfg)
+        KnobRow(Detector.Knob(Field.CHECKIN_UI_S, R.string.knob_time_to_answer, Detector.Unit.SECONDS, 5), cfg, ack)
+        KnobRow(Detector.Knob(Field.COUNTDOWN_S, R.string.knob_countdown, Detector.Unit.SECONDS, 5), cfg, ack)
+        KnobRow(Detector.Knob(Field.COUNTDOWN_IMPACT_S, R.string.knob_impact_countdown, Detector.Unit.SECONDS, 5), cfg, ack)
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
         Text(stringResource(R.string.when_night), style = MaterialTheme.typography.titleMedium,
              modifier = Modifier.padding(horizontal = 16.dp))
         Text(stringResource(R.string.when_night_explain), style = MaterialTheme.typography.bodyMedium,
              color = MaterialTheme.colorScheme.onSurfaceVariant,
              modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-        KnobRow(Detector.Knob(Field.NIGHT_START_HOUR, R.string.knob_night_start, Detector.Unit.HOUR, 1), cfg)
-        KnobRow(Detector.Knob(Field.NIGHT_END_HOUR, R.string.knob_night_end, Detector.Unit.HOUR, 1), cfg)
+        KnobRow(Detector.Knob(Field.NIGHT_START_HOUR, R.string.knob_night_start, Detector.Unit.HOUR, 1), cfg, ack)
+        KnobRow(Detector.Knob(Field.NIGHT_END_HOUR, R.string.knob_night_end, Detector.Unit.HOUR, 1), cfg, ack)
     }
 }
 
