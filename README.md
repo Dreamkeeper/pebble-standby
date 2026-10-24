@@ -83,8 +83,11 @@ What the field testing taught, each with a fix and a test:
   PebbleKit2 data-log delivery: library 1.3.0 plus
   [coredevices/mobileapp#378](https://github.com/coredevices/mobileapp/pull/378),
   which the companion now speaks). Until those land, [`dist/`](dist/)
-  carries a patched dual-slot PebbleOS build exposing the raw HR-quality
-  metric. The stock Pebble app forwards the watch's reports since
+  carries a patched PebbleOS build for the Time 2 (one bundle per firmware
+  slot; the Pebble app's Sideload FW takes the one for the inactive slot):
+  upstream v4.42.0 plus the raw-HR off-wrist invalidation (PR #1960), the
+  raw HR-quality diagnostic metric, and the worker vibration-history fix.
+  The stock Pebble app forwards the watch's reports since
   PebbleKit2 1.3.0; until the first report arrives the companion keeps
   the watch alive-checked by its hourly sync.
 
