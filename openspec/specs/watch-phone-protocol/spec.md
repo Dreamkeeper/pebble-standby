@@ -247,3 +247,15 @@ watch confirms it.
 - **THEN** the phone marks it pending, requests a watchapp launch unless
   another app is on the wearer's screen, and sends it when the watchapp
   opens
+
+### Requirement: The phone can suspend and resume the watch
+`PMSG_SUSPEND_SET` (phone → watch) SHALL carry the suspension length in
+minutes in SECONDS (0 = resume now) and the auto-resume flag in
+DETECTOR. The watch SHALL confirm either way through the existing
+`PMSG_SUSPENDED` (duration, or 0 when ended).
+
+#### Scenario: Phone pause reaches the watch
+- **WHEN** the phone sends `PMSG_SUSPEND_SET` with 840 minutes and
+  auto-resume
+- **THEN** the watch suspends, shows "Until worn again", and replies
+  `PMSG_SUSPENDED` with the duration

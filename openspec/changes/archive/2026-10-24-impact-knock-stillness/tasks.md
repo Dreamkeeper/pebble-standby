@@ -9,6 +9,6 @@
        impact page, row value line; `toSend(afterOpen)` re-sends changed
        fields at every watchapp open.
 - [x] 3. Docs: DESIGN §4.5 row, watchapp README table, spec delta.
-- [ ] 4. Owner verification: install 0.5.10, open Hard impact on the phone
+- [x] 4. Owner verification (2026-10-24: knock, still, "Are you OK?" at 2 min 3 s, SELECT): install 0.5.10, open Hard impact on the phone
        and confirm the knock knob acknowledges; knock the desk and stay
        still for a minute, no check-in before two.

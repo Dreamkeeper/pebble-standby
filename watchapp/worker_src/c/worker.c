@@ -167,8 +167,12 @@ static __attribute__((noinline)) void push_status_to_app(void) {
  * informational events (cancellations, nags, suspension changes) are
  * delivered just to an app that already happens to be open. */
 static void notify_app(const cm_action *a, bool launch) {
+  /* A cancel has no duration, so data2 carries its reason: the phone
+   * logs "pressed SELECT" vs "moved" (2026-10-24: every cancel read as
+   * reason 0 before, which misled two field investigations). */
   AppWorkerMessage m = {
-    .data0 = a->type, .data1 = a->detector, .data2 = a->seconds,
+    .data0 = a->type, .data1 = a->detector,
+    .data2 = (a->type == CM_ACT_ALERT_CANCELLED) ? a->reason : a->seconds,
   };
   app_worker_send_message(WMSG_ACTION, &m); /* no-op if app not running */
   if (!launch) return;

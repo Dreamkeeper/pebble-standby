@@ -11,7 +11,7 @@
        the response, dashboard label; pytest. Deployed to the NAS.
 - [x] 4. OpenSpec deltas: suspension, watch-phone-protocol,
        escalation-and-deadman.
-- [ ] 5. Owner verification: pause "until tomorrow morning" with the watch
+- [x] 5. Owner verification (2026-10-24: pause 2 h from the phone, watch 7140 s, server offline window and badge; auto-resume did not fire in 15 min of wearing — the 300 s hold cadence plus the 150 s freshness rule leaves a narrow window, to review from the minute records; SELECT ended the pause everywhere within 1 s): pause "until tomorrow morning" with the watch
        connected (watch shows "Until worn again", dashboard "paused by
        wearer", Home "Paused until tomorrow 08:00"); put the watch on and
        move for a minute: Home back to Covered, dashboard badge gone.

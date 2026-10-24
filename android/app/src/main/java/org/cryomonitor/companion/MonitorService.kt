@@ -336,9 +336,11 @@ class MonitorService : Service(), PebbleTransport.Listener {
             if (watchDownSince > 0) soak.add(SoakStats.DOWNTIME_S, downFor / 1000)
             if (watchDownSince > 0 && downFor >= 10_000) {
                 selfHealLaunch("watch reconnected after ${downFor / 1000}s")
-            } else {
+            } else if (watchDownSince > 0) {
                 CmLog.i(TAG, "watch reconnected after ${downFor / 1000}s — " +
                     "flap, no relaunch")
+            } else {
+                CmLog.i(TAG, "watch connected")
             }
         } else if (!connected && was) {
             watchDownSince = System.currentTimeMillis()
@@ -401,7 +403,10 @@ class MonitorService : Service(), PebbleTransport.Listener {
         CmLog.i(TAG, "planned pause until ${java.util.Date(untilT)} ($minutes min)")
         pushWatchPause(afterOpen = false)
         getSystemService(NotificationManager::class.java).cancel(NOTIF_FAULT_ID)
-        scope.launch { if (server.configured) server.offlineWindow(minutes * 60) }
+        scope.launch {
+            if (server.configured) server.offlineWindow(minutes * 60)
+            doServerHeartbeat() // the dashboard's paused badge follows at once
+        }
         updateNotification()
     }
 
@@ -414,7 +419,10 @@ class MonitorService : Service(), PebbleTransport.Listener {
         settings.pauseWatchPending = if (cause == "watch_resumed" || expired) -1 else 0
         CmLog.i(TAG, "planned pause ended ($cause)")
         if (settings.pauseWatchPending == 0) pushWatchPause(afterOpen = false)
-        if (!expired) scope.launch { if (server.configured) server.offlineWindow(0) }
+        scope.launch {
+            if (!expired && server.configured) server.offlineWindow(0)
+            doServerHeartbeat() // clears the dashboard's paused badge now, not in 5 min
+        }
         updateNotification()
     }
 

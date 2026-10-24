@@ -37,7 +37,8 @@ enum {
 
 /* AppWorkerMessage types (uint8). data0/data1/data2 per type. */
 enum {
-  WMSG_ACTION = 1,        /* worker->app: data0=cm_action_type, data1=detector, data2=seconds */
+  WMSG_ACTION = 1,        /* worker->app: data0=cm_action_type, data1=detector,
+                             data2=seconds (the cancel reason for ALERT_CANCELLED) */
   WMSG_USER_OK = 2,       /* app->worker */
   WMSG_SUSPEND = 3,       /* app->worker: data0=minutes, data1=auto_resume */
   WMSG_RESUME = 4,        /* app->worker */

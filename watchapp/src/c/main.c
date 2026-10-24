@@ -555,7 +555,8 @@ static void worker_message_handler(uint16_t type, AppWorkerMessage *m) {
   if (type == WMSG_ACTION) {
     cm_action a = {.type = (uint8_t)m->data0,
                    .detector = (uint8_t)m->data1,
-                   .seconds = m->data2};
+                   .seconds = m->data2,
+                   .reason = (m->data0 == CM_ACT_ALERT_CANCELLED) ? (uint8_t)m->data2 : 0};
     persist_delete(PK_PENDING_ACTION); /* we got it live */
     persist_delete(PK_PENDING_ACTION_T);
     handle_action(&a);
