@@ -84,7 +84,12 @@ class WatchLink(
             var pendingDown: Job? = null
             runCatching {
                 pk2Info.getConnectedWatches().collect { watches ->
-                    CmLog.i(TAG, "pk2: connected watches = ${watches.size}")
+                    // The firmware version in the log answers "which build is
+                    // on the wrist" after a sideload (2026-10-24: the store Pebble
+                    // app's own logs are not readable, so this is the one place).
+                    CmLog.i(TAG, "pk2: connected watches = ${watches.size}" +
+                        (watches.firstOrNull()?.let { " fw=${it.firmwareVersionMajor}." +
+                            "${it.firmwareVersionMinor}.${it.firmwareVersionPatch}" } ?: ""))
                     lastWatch = watches.firstOrNull() ?: lastWatch
                     pendingDown?.cancel()
                     if (watches.isNotEmpty()) {
