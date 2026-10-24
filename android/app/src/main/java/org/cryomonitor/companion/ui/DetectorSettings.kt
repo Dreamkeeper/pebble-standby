@@ -52,6 +52,7 @@ enum class Detector(
     IMPACT(Field.IMPACT_ENABLED, R.string.det_impact, R.string.det_impact_what, R.string.det_impact_limits,
         listOf(Knob(Field.IMPACT_IMMOBILE_S, R.string.knob_impact_still, Unit.SECONDS, 10),
                Knob(Field.SHOCK_IMMOBILE_S, R.string.knob_shock_still, Unit.SECONDS, 10),
+               Knob(Field.IMPACT_REST_MIN, R.string.knob_impact_rest, Unit.MINUTES, 1),
                Knob(Field.COUNTDOWN_IMPACT_S, R.string.knob_impact_countdown, Unit.SECONDS, 5))),
     NONMOTION(Field.NONMOTION_ENABLED, R.string.det_nonmotion, R.string.det_nonmotion_what, R.string.det_nonmotion_limits,
         listOf(Knob(Field.NONMOTION_DAY_MIN, R.string.knob_nonmotion_day, Unit.MINUTES, 10),

@@ -134,6 +134,8 @@ typedef struct {
   uint16_t impact_settle_s;       /* post-impact bounce ignored (default 5) */
   uint16_t impact_immobile_s;     /* stillness required before alerting (default 60) */
   uint16_t shock_immobile_s;      /* same, after a bare shock with no freefall (default 120) */
+  uint16_t impact_rest_min;       /* an impact after this long with no sustained motion is a
+                                     sleeper's arm, not a fall: dropped silently (default 5) */
 
   /* Non-motion */
   uint16_t nonmotion_day_min;     /* default 40 */
@@ -291,6 +293,7 @@ typedef enum {
   CM_CFG_PULSE_SNOOZE_MIN = 12,
   CM_CFG_IMPACT_IMMOBILE_S = 20,
   CM_CFG_SHOCK_IMMOBILE_S = 21,
+  CM_CFG_IMPACT_REST_MIN = 22,
   CM_CFG_NONMOTION_DAY_MIN = 30,
   CM_CFG_NONMOTION_NIGHT_MIN = 31,
   CM_CFG_NIGHT_START_HOUR = 32,

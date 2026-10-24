@@ -176,6 +176,7 @@ static void test_defaults(void) {
   CHECK(cfg.nonmotion_night_min == 90);
   CHECK(cfg.countdown_impact_s < cfg.countdown_s); /* impacts get a faster fuse */
   CHECK(cfg.shock_immobile_s == 2 * cfg.impact_immobile_s); /* a knock waits twice as long */
+  CHECK(cfg.impact_rest_min == 5);     /* an impact out of rest is a sleeper's arm */
   CHECK(cfg.notworn_after_min == 3);   /* removal nags fast, never contacts */
   CHECK(cfg.pulse_proof_min == 5);     /* live pulse = proof of life */
   CHECK(cfg.pulse_flat_after_s == 300); /* frozen value = stale (S4) */
@@ -284,6 +285,64 @@ static void test_bare_shock_waits_longer(void) {
   CHECK(cm_apply_config(&core, CM_CFG_SHOCK_IMMOBILE_S, 20) == 0);   /* below range */
   CHECK(cm_apply_config(&core, CM_CFG_SHOCK_IMMOBILE_S, 300) == 1);
   CHECK(cm_config_get(&core, CM_CFG_SHOCK_IMMOBILE_S) == 300);
+}
+
+/* Field 2026-10-05..24: nine night-time "Are you OK?" check-ins, each
+ * the same shape — 6 to 34 min of complete rest with a steady pulse, one
+ * jerk (the arm hitting the headboard, or dropping onto the mattress:
+ * both signatures occurred), then sleep stillness through whichever
+ * immobility window applied. A fall is preceded by standing or walking,
+ * so an impact that arrives after impact_rest_min (default 5) with no
+ * sustained motion is dropped silently; a still wearer stays covered by
+ * the pulse and no-movement ladders. */
+static void test_impact_out_of_rest_is_silent(void) {
+  g_test = "impact_out_of_rest_is_silent";
+  cm_config cfg = test_cfg();
+  cfg.enabled[CM_DET_NOTWORN] = 0;
+  cfg.enabled[CM_DET_NONMOTION] = 0;
+  setup(&cfg);
+  warmup();                                /* ends with 60 s of stillness */
+
+  /* asleep: five more minutes without sustained motion, pulse alive */
+  secs_still_worn(5 * 60);
+  event_fall();                            /* the arm drops off the bed edge */
+  CHECK(core.impact_phase == 0);           /* not even a candidate */
+  secs_still_worn(130);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+
+  sec_shock();                             /* the arm hits the headboard */
+  CHECK(core.impact_phase == 0);
+  secs_still_worn(130);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 0);
+
+  /* awake and walking, then the fall: a candidate as before */
+  for (int i = 0; i < 5; i++) sec_moving_hr(80);
+  secs_still_worn(2);
+  event_fall();
+  CHECK(core.impact_phase == 2);
+  secs_still_worn(66);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 1);
+  log_reset();
+  cm_user_ok(&core, now_ms);
+  drain();
+
+  /* a rest shorter than the knob does not gate */
+  log_reset();
+  for (int i = 0; i < 5; i++) sec_moving_hr(80);
+  secs_still_worn(4 * 60);
+  sec_shock();
+  CHECK(core.impact_phase == 2);
+  secs_still_worn(130);
+  CHECK(count_type(CM_ACT_CHECKIN_START) == 1);
+  log_reset();
+  cm_user_ok(&core, now_ms);
+  drain();
+
+  /* the knob reaches the core like every other setting */
+  CHECK(cm_apply_config(&core, CM_CFG_IMPACT_REST_MIN, 0) == 0);    /* below range */
+  CHECK(cm_apply_config(&core, CM_CFG_IMPACT_REST_MIN, 61) == 0);   /* above range */
+  CHECK(cm_apply_config(&core, CM_CFG_IMPACT_REST_MIN, 10) == 1);
+  CHECK(cm_config_get(&core, CM_CFG_IMPACT_REST_MIN) == 10);
 }
 
 static void test_impact_cancelled_by_motion(void) {
@@ -1393,6 +1452,7 @@ int main(void) {
   test_defaults();
   test_impact_full_ladder();
   test_bare_shock_waits_longer();
+  test_impact_out_of_rest_is_silent();
   test_impact_cancelled_by_motion();
   test_impact_checkin_needs_button();
   test_apply_config();

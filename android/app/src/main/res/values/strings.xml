@@ -227,7 +227,7 @@
     <string name="det_pulse_limits">A loose strap, a cold wrist or the watch lying on a table also stop the signal. That is why the watch asks first instead of alerting at once. It cannot tell you why the signal stopped.</string>
     <string name="det_pulse_value">asks after %1$s without signal</string>
     <string name="det_impact">Hard impact</string>
-    <string name="det_impact_what">A fall, or a hard knock, followed by no movement. A fall has a signature: a moment of free fall, then the hit. A knock has no free fall, and because a knock is usually followed by a quiet minute, it waits longer for the stillness. Only a press of SELECT on the watch, or Cancel on this phone, dismisses it.</string>
+    <string name="det_impact_what">A fall, or a hard knock, followed by no movement. A fall has a signature: a moment of free fall, then the hit. A knock has no free fall, and because a knock is usually followed by a quiet minute, it waits longer for the stillness. Only a press of SELECT on the watch, or Cancel on this phone, dismisses it. A fall comes after standing or walking, so a knock or a fall that arrives after minutes of complete rest, as in sleep, is ignored.</string>
     <string name="det_impact_limits">Dropping the watch on a desk also counts as a knock; because you are not wearing it then, no pulse reading follows and the alert is discarded.</string>
     <string name="det_impact_value">asks after %1$d s of stillness, %2$d s after a knock</string>
     <string name="det_nonmotion">No movement</string>
@@ -253,6 +253,7 @@
     <string name="knob_pulse_snooze">Quiet after I say I am OK</string>
     <string name="knob_impact_still">Stillness after a fall</string>
     <string name="knob_shock_still">Stillness after a knock</string>
+    <string name="knob_impact_rest">Ignored after resting for</string>
     <string name="knob_impact_countdown">Countdown after an impact</string>
     <string name="knob_nonmotion_day">By day</string>
     <string name="knob_nonmotion_night">At night</string>

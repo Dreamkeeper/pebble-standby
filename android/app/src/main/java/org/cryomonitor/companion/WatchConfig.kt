@@ -27,6 +27,7 @@ class WatchConfig(context: Context) {
         PULSE_SNOOZE_MIN(12, 10, 1, 120),
         IMPACT_IMMOBILE_S(20, 60, 30, 300),
         SHOCK_IMMOBILE_S(21, 120, 30, 600),
+        IMPACT_REST_MIN(22, 5, 1, 60),
         NONMOTION_DAY_MIN(30, 40, 10, 240),
         NONMOTION_NIGHT_MIN(31, 90, 10, 480),
         NIGHT_START_HOUR(32, 23, 0, 23),
