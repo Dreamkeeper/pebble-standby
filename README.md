@@ -31,7 +31,7 @@ an Android companion app, and an optional self-hosted server.
 | [`server/`](server/) | Self-hosted backend (Python/FastAPI, Docker): phone dead-man monitoring with auto all-clear on recovery, tiered escalation with delivery ACK + retry via Telegram/ntfy/email, idempotent alarm intake, leased command queue, web dashboard. Deployed on a Synology NAS behind HTTPS. |
 | [`docs/`](docs/) | Product plan, soak-test protocol, deployment guides ([VPS](docs/DEPLOY-VPS.md), [Synology](docs/DEPLOY-SYNOLOGY.md)), [Telegram bot setup](docs/TELEGRAM-BOT.md), review/optimization records, upstream-PR docs. |
 | [`openspec/`](openspec/) | Living specs ([OpenSpec](https://github.com/Fission-AI/openspec)): product requirements, detector ladder, watch↔phone protocol, escalation/dead-man, suspension, companion resilience. Changes flow through `/opsx:propose` → `/opsx:apply` → `/opsx:archive`. |
-| [`tools/`](tools/) | `worker_log_timeline.py`: rebuilds the watch worker's per-minute timeline from shared companion logs, for post-mortems without ADB. |
+| [`tools/`](tools/) | `worker_log_timeline.py`: rebuilds the watch worker's per-minute timeline from shared companion logs, for post-mortems without ADB. `quiet_record.py`: the per-wearer quiet record (days and nights watched, questions, countdowns, alarms, alarms sent to contacts) from the same logs; see [docs/BETA-TESTER-KIT.md](docs/BETA-TESTER-KIT.md). |
 | [`dist/`](dist/) | Current sideload artifacts: watchapp `.pbw`, companion `.apk`, and the dual-slot test firmware `.pbz` for Pebble Time 2. |
 
 ## Design lineage
