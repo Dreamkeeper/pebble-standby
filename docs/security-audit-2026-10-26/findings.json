@@ -1,0 +1,1719 @@
+[
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/Caddyfile:ntfy-placeholder-site:sni-reachable",
+    "title": "VPS Caddyfile always serves the unauthenticated bundled ntfy on public 443 under the placeholder name ntfy.localhost, contradicting its own 'never reachable' promise",
+    "description": "The VPS overlay promises that leaving CM_NTFY_DOMAIN unset keeps the bundled ntfy private (server/Caddyfile:13-15, docs/DEPLOY-VPS.md:142-143). Source shows the opposite configuration: docker-compose.vps.yml:44 passes CM_NTFY_DOMAIN=ntfy.localhost to the Caddy container whenever the variable is unset or empty (compose `:-` default; server/.env.example:67 ships it empty, and docs/DEPLOY-VPS.md:33 tells the operator to copy that file), and server/Caddyfile:16-17 unconditionally declares a second HTTPS site for that name that reverse-proxies to ntfy:80. The Caddyfile has no global options (no auto_https off, no strict_sni_host, no listener restriction), so both sites share the single :443 listener that docker-compose.vps.yml:38-41 publishes on every interface of the public VPS. Caddy routes HTTP requests by the client-supplied Host header and, for *.localhost names, issues an internal certificate instead of refusing the site; if that is confirmed at caddy 2.11.7, any internet client that connects to the VPS's 443 with SNI/Host `ntfy.localhost` (curl -k --resolve), or completes TLS under the real CM_DOMAIN certificate and sends `Host: ntfy.localhost`, reaches the ntfy container. The ntfy service (server/docker-compose.yml:74-78) runs `serve` with no auth-file or auth-default-access setting, i.e. ntfy's default anonymous read-write on every topic. Concrete result if validated: anyone on the internet can publish to and subscribe on any topic of the owner's ntfy. Because server/.env.example:29 sets CM_NTFY_URL=http://ntfy (the bundled instance; docs/DEPLOY-VPS.md:143 wrongly says ntfy.sh is used in that case), a default VPS install publishes real alerts there: a subscriber who knows or guesses an operator-chosen contact topic (4-64 chars of letters, digits, - and _, wearers.py:258-259) reads the wearer's name, detector and Google-Maps location (channels.py:23-36) and the raw acknowledge URL carried in the `Actions` header (channels.py:83-84, main.py:485), which lets them POST /api/v1/ack/{token} (main.py:339-341) and record an acknowledgement for that contact; they can also push spoofed 'Standby' notifications to a contact's topic. In every configuration the owner's IP hosts an open anonymous push relay. The configuration is a maintained deployment path (docs/DEPLOY-VPS.md) but not the owner's NAS production, so live exposure depends on whether the overlay is deployed and on provider behaviour that must be rendered or observed.",
+    "claimed_root_cause": "server/Caddyfile:16 uses the Caddyfile default `{$CM_NTFY_DOMAIN:ntfy.localhost}` (and docker-compose.vps.yml:44 the compose default `${CM_NTFY_DOMAIN:-ntfy.localhost}`) as if an unset variable disabled the ntfy site. Caddy has no conditional site emission: a `*.localhost` site address is a fully served site on the shared public :443 listener, selected by client-supplied SNI/Host rather than by DNS, and certified by Caddy's internal issuer, so the 'placeholder' remains routable from any peer that reaches port 443.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/docker-compose.vps.yml",
+        "line": 40,
+        "scope": "services.caddy.ports",
+        "description": "Caddy's 443 (plus 80 and 443/udp, lines 39-41) is published without a host_ip, i.e. on all interfaces of the public VPS; any internet client reaches this listener."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/docker-compose.vps.yml",
+        "line": 44,
+        "scope": "services.caddy.environment.CM_NTFY_DOMAIN",
+        "description": "`${CM_NTFY_DOMAIN:-ntfy.localhost}` hands the Caddy container the literal ntfy.localhost whenever the operator leaves the variable unset or empty (as server/.env.example:67 ships it)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/Caddyfile",
+        "line": 16,
+        "scope": "site block {$CM_NTFY_DOMAIN:ntfy.localhost}",
+        "description": "A second HTTPS site for host ntfy.localhost is always declared on the same default :443 server as {$CM_DOMAIN}; no global options restrict listeners, SNI or automatic HTTPS, so Caddy matches it on the client-supplied Host (and obtains an internal certificate for the .localhost name) — provider behaviour to be rendered."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/Caddyfile",
+        "line": 17,
+        "scope": "reverse_proxy ntfy:80",
+        "description": "Matching requests are forwarded unchanged to the ntfy container over the compose network."
+      },
+      {
+        "kind": "sink",
+        "file": "server/docker-compose.yml",
+        "line": 75,
+        "scope": "services.ntfy.command serve",
+        "description": "ntfy v2.28.0 runs `serve` with no NTFY_AUTH_FILE / NTFY_AUTH_DEFAULT_ACCESS and no tracked server.yml, i.e. the provider default of anonymous read-write on every topic: subscribe (read alert bodies and raw ack URLs), publish (spoof alerts), relay."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/Caddyfile",
+        "line": 13,
+        "description": "Comment (lines 13-15) asserts 'Leave CM_NTFY_DOMAIN unset to keep it private (the placeholder host is never reachable from outside)'; the site block below contradicts this because Caddy site selection depends on the client's SNI/Host, not on DNS."
+      },
+      {
+        "file": "server/Caddyfile",
+        "line": 16,
+        "description": "`{$CM_NTFY_DOMAIN:ntfy.localhost} {` with `reverse_proxy ntfy:80` on line 17 emits the ntfy site unconditionally; the file has no global options block (no auto_https off, strict_sni_host or bind directive)."
+      },
+      {
+        "file": "server/docker-compose.vps.yml",
+        "line": 29,
+        "description": "NTFY_BASE_URL defaults to https://ntfy.localhost and NTFY_BEHIND_PROXY=true (line 30): the overlay itself treats the placeholder name as the served base URL of the ntfy site."
+      },
+      {
+        "file": "server/docker-compose.vps.yml",
+        "line": 38,
+        "description": "services.caddy.ports publishes 80, 443 and 443/udp on all interfaces (lines 39-41); the ntfy container's own port is pinned to 127.0.0.1:8090 (line 27), so Caddy is the only but sufficient path."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 74,
+        "description": "ntfy image v2.28.0 with `command: serve` (line 75) and no auth-related environment or config volume other than the data dir; no ntfy server.yml is tracked in the repository."
+      },
+      {
+        "file": "server/.env.example",
+        "line": 29,
+        "description": "CM_NTFY_URL=http://ntfy: the file the VPS guide tells operators to copy publishes alerts to the bundled ntfy, so the reachable instance carries real alerts (docs/DEPLOY-VPS.md:143's claim that ntfy.sh is used without CM_NTFY_DOMAIN does not match this default)."
+      },
+      {
+        "file": "server/.env.example",
+        "line": 67,
+        "description": "CM_NTFY_DOMAIN= ships empty; compose's `:-` default therefore substitutes ntfy.localhost for both the Caddy site and NTFY_BASE_URL."
+      },
+      {
+        "file": "docs/DEPLOY-VPS.md",
+        "line": 33,
+        "description": "`cp .env.example .env` is the prescribed setup step, so the defaults above are the default VPS deployment."
+      },
+      {
+        "file": "docs/DEPLOY-VPS.md",
+        "line": 142,
+        "description": "Operator-facing doc repeats that without CM_NTFY_DOMAIN 'the bundled ntfy stays private to the VPS' (lines 142-143)."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 83,
+        "description": "Every ntfy alert carries `Actions: http, Acknowledge, {ack_url}, method=POST, clear=true` (lines 83-84), and the body (lines 23-36) holds the wearer's name, detector and a Google-Maps location link; a topic subscriber obtains the raw ack URL."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 485,
+        "description": "ack_url is built from PUBLIC_URL and the raw ack token; POST /api/v1/ack/{ack_token} (lines 339-341) records the acknowledgement for the contact with possession of the token as the only check (do_ack, lines 306-319)."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 258,
+        "description": "Contact ntfy topics are operator-chosen strings of 4-64 letters, digits, - and _ (lines 258-259); nothing enforces unguessable topics."
+      }
+    ],
+    "blockers": [
+      "Caddy 2.11.7 behaviour is a provider fact outside the repository and could not be rendered in this run (no execution permitted): that both site blocks land on one :443 server routed by Host, that a *.localhost address is served with an internal-issuer certificate rather than refused, and that strict_sni_host is off by default so a Host: ntfy.localhost request under the CM_DOMAIN certificate also reaches the ntfy route.",
+      "ntfy v2.28.0's default of anonymous read-write access with no auth-file / auth-default-access configured is a provider default outside the repository; it decides whether reachability means open read/publish or only an unauthenticated health endpoint.",
+      "Whether the VPS overlay (docker-compose.vps.yml + Caddyfile) is deployed anywhere today is not source-visible (docs/SECURITY-AUDIT-2026-10-13.md:194-196 asked the same question); the owner's NAS production uses the base compose without Caddy, where this path does not exist.",
+      "Whether a deployed VPS .env sets CM_NTFY_DOMAIN (intentionally public ntfy) or leaves it unset (the failing privacy claim), and whether CM_NTFY_URL points at the bundled instance (alerts readable) or ntfy.sh (open relay only), cannot be read in this audit."
+    ],
+    "validation_plan": {
+      "local": "On any machine with the caddy 2.11.7 binary, no network needed and nothing deployed: `CM_DOMAIN=standby.example.org CM_NTFY_DOMAIN=ntfy.localhost caddy adapt --config server/Caddyfile --adapter caddyfile --pretty`. Expected if the candidate holds: one server under apps.http.servers listening on [\":443\"] whose routes include a route with `match: [{\"host\": [\"ntfy.localhost\"]}]` and a reverse_proxy handler with upstream dial `ntfy:80`, no `strict_sni_host` key, and an apps.tls.automation policy whose subjects include ntfy.localhost with `issuers: [{\"module\": \"internal\"}]`. Then `caddy validate --config server/Caddyfile --adapter caddyfile` with the same env must succeed. A rendering that puts the ntfy site on a different listener, omits it, or rejects the name refutes the candidate. Optionally, in an offline container, `caddy run` with that Caddyfile plus a stub listener on ntfy:80 and `curl -sk --resolve ntfy.localhost:443:127.0.0.1 https://ntfy.localhost/` must return the stub's response.",
+      "deployment": "Owner only, on the VPS host over loopback, nothing sent from elsewhere and nothing changed: (1) `docker compose ps` to record whether the caddy service from docker-compose.vps.yml is running at all; (2) `grep -E '^(CM_NTFY_DOMAIN|CM_NTFY_URL)=' .env` to record intent (do not share the file); (3) `curl -sk --resolve ntfy.localhost:443:127.0.0.1 https://ntfy.localhost/v1/health` — a JSON `{\"healthy\":true}` reply proves ntfy is served through Caddy's public 443 under the placeholder name, a TLS alert or Caddy 404/empty reply refutes it; (4) `curl -s --resolve <CM_DOMAIN>:443:127.0.0.1 -H 'Host: ntfy.localhost' https://<CM_DOMAIN>/v1/health` — the same JSON shows the route is reachable without any certificate warning; (5) anonymous access: `curl -sk --resolve ntfy.localhost:443:127.0.0.1 -d probe https://ntfy.localhost/standby-audit-probe-<random>` followed by `curl -sk --resolve ntfy.localhost:443:127.0.0.1 'https://ntfy.localhost/standby-audit-probe-<random>/json?poll=1'` on a throwaway topic; a 200 publish and the message echoed back prove default read-write for anonymous clients (HTTP 403 refutes the impact branch)."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/app/diagnostics.py:upload:no-per-wearer-quota",
+    "title": "A single wearer token can fill the shared ./data volume with diagnostics bundles; a full volume would block SQLite writes that every escalation send depends on",
+    "description": "POST /api/v1/diagnostics (server/app/diagnostics.py:74-116) is reachable with any valid wearer bearer token (require_wearer, wearers.py:71-77) and stores every accepted body as <CM_DATA_DIR>/diagnostics/<wearer>/<server-generated id>.zip plus one row in the diagnostics table. The only bounds are per request: a Content-Length pre-check (line 82) and a streamed cap of MAX_BYTES, 20 MiB by default (line 97). There is no per-wearer count, aggregate-byte or rate limit anywhere on the path: add_diagnostics (store.py:495-500) inserts unconditionally, the bundle id is a fresh time+random string per call (line 85), an admin 'request' is optional (request_id is None is accepted, line 111), and the only cleanup is age-based (purge_expired, lines 55-63, RETENTION_DAYS=30, run at most hourly, lines 66-71). The upstream layers add no cap: the Caddyfile has no request_body limit (Caddyfile:10), uvicorn is started without body limits (Dockerfile:34), and docker-compose.yml passes neither CM_DIAG_MAX_BYTES nor CM_DIAG_RETENTION_DAYS into the container (environment block lines 20-56; .env.example:59-60 documents them anyway), so the shipped deployment runs on the defaults. Attacker cost is low: a wearer token (an enrolled wearer, or anyone who copied the token from a phone) and upload bandwidth; a 4-byte body b'PK\\x03\\x04' passes the magic check (line 102) if the goal is row and inode growth rather than bytes, and 20 MiB bodies grow the volume at line rate. Persistence is 30 days per bundle. Shared blast radius: bundles, cryomonitor.db (store.py:104), ./data/ntfy (compose line 80) and, in the VPS overlay, Caddy's certificate and config state (docker-compose.vps.yml:47-48) all live on the one writable bind mount ./data:/srv/data (compose line 68); mem_limit (line 17) bounds memory only and no storage quota is declared. The project's own VPS guide sizes the machine at 10 GB disk (docs/DEPLOY-VPS.md:5), i.e. on the order of 500 maximum-size uploads. Safety-function impact if the volume fills: the pump inserts an ack token into SQLite before any send (main.py:394, design D3) and create_escalation persists before returning (main.py:141), so a failing write turns a wearer's alarm POST into a 500 and raises out of pump_cycle, where _pump_loop logs and retries the whole cycle (main.py:525-530) — no escalation of any wearer on the instance is delivered until space is freed; heartbeats also write (main.py:200-203) and would fail too. Recovery is poor: no disk-usage alert exists in the stack, and the dashboard deletes one bundle per CSRF-protected POST (ui.py:441-448), so an operator would have to clean up from a shell. What source cannot settle: whether the host enforces a quota on ./data (and how much free space the volume has), and the exact behaviour of SQLite in WAL mode (store.py:129) plus the pump on ENOSPC (a WAL file with already-allocated space can absorb some commits before SQLITE_FULL surfaces). The missing-bound half of the claim is established from source only in this run; no target code was executed.",
+    "claimed_root_cause": "diagnostics.upload enforces only a per-request size cap and never consults the wearer's existing bundle count, aggregate bytes or upload rate, while the bundle store shares the single writable volume that the safety-critical SQLite writes (ack tokens, escalation state, heartbeats) depend on.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/diagnostics.py",
+        "line": 74,
+        "scope": "upload",
+        "description": "POST /api/v1/diagnostics; the only authentication is require_wearer(authorization) at line 77, so any holder of a valid wearer bearer token reaches it, with or without an admin diagnostics request."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/diagnostics.py",
+        "line": 82,
+        "scope": "upload",
+        "description": "Per-request bounds only: Content-Length pre-check here and the streamed 'if size > MAX_BYTES' (20 MiB default, line 23) at line 97. No COUNT or SUM over the wearer's existing bundles, no rate limit, no upstream body limit (Caddyfile:10, Dockerfile:34)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/diagnostics.py",
+        "line": 104,
+        "scope": "upload",
+        "description": "os.replace makes the bundle permanent under <CM_DATA_DIR>/diagnostics/<wid>/<diag_id>.zip; diag_id is a fresh server-generated id per call (line 85), and a 4-byte body b'PK\\x03\\x04' satisfies the magic check at line 102, so rows and inodes can accumulate at minimal per-request cost."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 498,
+        "scope": "Store.add_diagnostics",
+        "description": "Unconditional INSERT into diagnostics (called from diagnostics.py:110); the table is only pruned by age via diagnostics_older_than (lines 519-523) from purge_expired (30 days)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/docker-compose.yml",
+        "line": 68,
+        "scope": "services.monitor.volumes",
+        "description": "./data:/srv/data is the single writable mount (container is read_only with tmpfs /tmp, lines 11-13) holding diagnostics/, cryomonitor.db (store.py:104) and ./data/ntfy (line 80); no storage quota is declared, and the VPS overlay adds Caddy's cert/config state to the same tree (docker-compose.vps.yml:47-48)."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/main.py",
+        "line": 394,
+        "scope": "_ack_token_for",
+        "description": "db.add_ack_token must succeed before any send (design D3). On a full volume the INSERT raises out of pump_cycle; _pump_loop (lines 525-530) logs and retries the whole cycle every 5 s, so no escalation of any wearer is delivered until space is freed."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/diagnostics.py",
+        "line": 97,
+        "description": "The only size control on the path: 'if size > MAX_BYTES' per request (MAX_BYTES from CM_DIAG_MAX_BYTES, default 20 MiB, line 23)."
+      },
+      {
+        "file": "server/app/diagnostics.py",
+        "line": 110,
+        "description": "db.add_diagnostics(wid, diag_id, size, days, request_id) is called with no check of the wearer's existing bundle count or bytes; request_id may be None (line 111), so no admin request is needed."
+      },
+      {
+        "file": "server/app/diagnostics.py",
+        "line": 59,
+        "description": "purge_expired deletes only rows with created_t older than RETENTION_DAYS (30) days; purge_if_due runs it at most hourly (lines 66-71). Nothing else frees space automatically."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 104,
+        "description": "The SQLite file cryomonitor.db lives in the same CM_DATA_DIR as the bundles; connections use WAL mode (line 129)."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 141,
+        "description": "create_escalation calls _persist_escalation (db.save_escalation) before returning, so a failing write turns POST /api/v1/alarm (line 248-261) into a 500."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 527,
+        "description": "_pump_loop catches any exception from pump_cycle, logs it and retries after 5 s; a persistent write failure means no cycle completes and no sends happen for any wearer."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 441,
+        "description": "Deletion is one bundle per CSRF-protected admin POST; no bulk or per-wearer purge exists in the UI or the API."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 20,
+        "description": "The environment block passes neither CM_DIAG_MAX_BYTES nor CM_DIAG_RETENTION_DAYS and there is no env_file, so the knobs documented at server/.env.example:59-60 are inert in the shipped deployment."
+      },
+      {
+        "file": "server/Caddyfile",
+        "line": 10,
+        "description": "reverse_proxy monitor:8080 with no request_body max_size, so the VPS proxy adds no upload cap."
+      },
+      {
+        "file": "docs/DEPLOY-VPS.md",
+        "line": 5,
+        "description": "The recommended VPS tier has a 10 GB disk, i.e. roughly 500 maximum-size bundles would fill the volume that also holds cryomonitor.db and Caddy's certificates."
+      }
+    ],
+    "blockers": [
+      "Whether the host filesystem under ./data enforces a quota for UID 10001 or the shared folder (Synology shared-folder quota; VPS partition layout and free space) is a deployment fact not visible in source. Without a quota the shared-impact chain holds; with one the blast radius shrinks to the diagnostics directory.",
+      "The behaviour of SQLite in WAL mode and of the pump when the volume is full (when SQLITE_FULL surfaces on the ack-token INSERT and the escalation UPSERT, given that an already-allocated WAL file can absorb some commits) is a runtime fact that this run's policy forbids demonstrating; the pytest tmp_path fixture cannot produce a size-bounded filesystem, so a throwaway size-limited mount is needed."
+    ],
+    "validation_plan": {
+      "local": "Step 1 (missing bound, existing fixtures, no filesystem tricks): in server/tests, with the appenv fixture from conftest.py, loop 50 times posting content=b'PK\\x03\\x04' to '/api/v1/diagnostics?days=1' with headers {'Content-Type': 'application/zip', **wearer_headers()} (the _upload helper in tests/test_diagnostics.py already does this); assert every response is 200, that appenv.store.list_diagnostics('default') has 50 rows, that os.listdir(os.path.join(os.environ['CM_DATA_DIR'], 'diagnostics', 'default')) has 50 files, and that app.diagnostics.purge_expired(time.time()) returns 0 and leaves all 50. Every iteration returning 200 demonstrates the absence of a per-wearer bound; any 4xx disproves it. Step 2 (shared-volume effect, optional, Linux throwaway environment only, never the live service): mount a small tmpfs (e.g. mount -t tmpfs -o size=16m tmpfs /mnt/cmtest) and run the same fixture with CM_DATA_DIR pointing at it (monkeypatch before _build_appenv), enrol a second wearer via the admin API, upload 20 MiB-capped bundles with the first wearer's token until a 500 or 413 appears, then POST /api/v1/alarm with the second wearer's token and call await appenv.main.pump_cycle(); record whether the alarm POST returns 500 and whether pump_cycle raises sqlite3.OperationalError ('database or disk is full') from add_ack_token with appenv.fakes['telegram'].sent still empty. Unmount the tmpfs afterwards.",
+      "deployment": "On the NAS or VPS host, without generating any requests against the service: run df -h on the filesystem holding ./data and du -sh ./data/diagnostics; on DSM check Control Panel > Shared Folder > Edit > Quota (and user quota for UID 10001) for the folder holding ./data; on the VPS check whether ./data is on the root partition (findmnt -T ./data). Record the free space in units of 20 MiB and whether any disk-usage alert or quota exists for that volume. If no quota separates diagnostics from cryomonitor.db, the shared-impact chain stands; if a quota exists, note its size."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "server/app/main.py:create_escalation:no-per-wearer-open-escalation-or-fanout-bound",
+    "title": "No per-wearer bound on open escalations, contacts or per-cycle sends: one wearer token drives unbounded recurring fan-out through the operator's channels and head-of-line blocks every other wearer's delivery and dead-man evaluation",
+    "description": "POST /api/v1/alarm (server/app/main.py:248-261) de-duplicates only on an exact (kind, detector) match among the caller's unresolved escalations, and AlarmIn.detector (main.py:167) is an uncapped free string, so every distinct detector value opens another escalation; create_escalation (main.py:134-150) performs no count or rate check and snapshot_tiers (main.py:108-131) copies every contact of the wearer that has at least one address into the new escalation. The same wearer token creates contacts without any per-wearer count (wearers.py:305-318 -> store.upsert_contact, store.py:248-263 mints a fresh id per call) with only syntactic address validation (wearers.py:247-264), and may set its tier cadence down to 60 s (wearers.py:340-341). Escalation.step marks every unacked contact due at creation time (escalation.py:92, 162-164), one Send per channel (169-172), and again every repeat_after_s until resolve() (165-166). pump_cycle awaits each Send strictly sequentially in the single pump coroutine (main.py:468-499, `ok = await _deliver(...)` at 488, _deliver at 409-411 runs the blocking transport in a thread and waits for it), so with C contacts carrying all three addresses and E open escalations one wearer injects 3*C*E network sends per repeat interval, each bounded only by the transport's 15 s timeout (channels.py:20). The dead-man evaluation for every enabled wearer (main.py:442-465) and the sends of every escalation later in dict order run only after those awaits complete, and _pump_loop (525-535) runs cycles back to back; escalations created by another wearer during a long cycle are not in the `list(escalations.items())` snapshot and wait for the next cycle. All sends use the operator's single Telegram bot token, SMTP account and ntfy origin (main.py:76, channels.py:61-63, 115-119, 125-141) and carry the wearer-chosen detector text in the body (channels.py:32-33). Nothing prunes the `escalations`/`_ack_cache` dicts (main.py:82-83), unresolved escalations are restored on restart (545-547), the delivery loop ignores the wearer's enabled flag (468-470; only the dead-man section checks it at 442-444), and after a disable the wearer's own cancel routes stop authenticating (store.py:183-191), so the only stop is an operator resolving each escalation one at a time (ui.py:278-297, main.py:285-301). The spec requires that one wearer's alarm or configuration never affects another wearer's escalation behaviour (openspec/specs/escalation-and-deadman/spec.md:207-211) and treats wearers as isolated tenants (openspec/specs/wearer-management/spec.md:6-12). The magnitude of the cross-wearer delay and of the operator's spend depends on real transport latency and provider limits, which are runtime facts; the unbounded, recurring, serialised fan-out itself is complete in source.",
+    "root_cause": "The server has no containment limit on any wearer-controlled multiplier (contacts per wearer, open escalations per wearer, alarm rate, detector length, minimum cadence beyond 60 s) and delivers all wearers' due sends serially in the one coroutine that also runs every wearer's dead-man check, through shared operator-owned channel credentials.",
+    "intended_behavior": "A wearer configures a small set of its own emergency contacts and a phone retry maps onto the existing escalation; alert volume is bounded by the tier design, one wearer's load cannot delay another wearer's alert delivery or silent-phone detection, and the operator's channel credentials are not usable as an unbounded relay by any single wearer token.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/main.py",
+        "line": 248,
+        "scope": "alarm",
+        "description": "POST /api/v1/alarm authenticated by a wearer bearer token (require_wearer); AlarmIn.detector (line 167) is a required, uncapped str and kind is any AlertKind value."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 255,
+        "scope": "alarm",
+        "description": "Dedup loop returns an existing id only when an unresolved escalation of this wearer has the identical kind and identical detector string; any new detector value falls through to create_escalation (259)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 136,
+        "scope": "create_escalation",
+        "description": "A fresh esc_id is minted, snapshot_tiers (108-131) copies every contact of the wearer that has an address, the Escalation is stored in the module dict (138) and persisted (141); no per-wearer count, rate or size check."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/wearers.py",
+        "line": 305,
+        "scope": "upsert_contact",
+        "description": "The same wearer token creates a new contact on every POST without an id (store.upsert_contact, store.py:249 mints uuid4 ids); _validate_contact (252-264) checks only address syntax; no per-wearer contact count."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/wearers.py",
+        "line": 340,
+        "scope": "upsert_tier",
+        "description": "repeat_after_s and promote_after_s are refused only below 60 s; the wearer may set a 60 s repeat on its own tier."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/escalation.py",
+        "line": 162,
+        "scope": "Escalation.step",
+        "description": "Every unacked contact is due as soon as t >= first_due_t (set to the creation time at 92), one Send per channel (169-172), and again whenever t - last_sent_t >= repeat_after_s (165-166) until resolve()."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 488,
+        "scope": "pump_cycle",
+        "description": "`ok = await _deliver(channel, address, text, ack_url, raw_token)` is awaited for each Send of each escalation in turn; _deliver (409-411) runs the blocking channel transport in a thread and waits for it, so the coroutine advances one send at a time."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/main.py",
+        "line": 468,
+        "scope": "pump_cycle",
+        "description": "The delivery loop walks every unresolved escalation of every wearer in one coroutine; later escalations' sends and the next cycle's dead-man section for all wearers (442-465, _pump_loop 525-535) run only after the earlier sends complete, and every send goes out through the operator's shared CHANNELS (76) to the wearer-chosen address."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/main.py",
+        "line": 167,
+        "description": "`detector: str` with no length or value constraint: the dedup key space is unbounded and the text is embedded verbatim in every message (render_message, channels.py:32-33)."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 82,
+        "description": "`escalations` and `_ack_cache` (83) are module dicts that only grow at runtime; resolve() sets a flag and nothing deletes entries."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 545,
+        "description": "Startup restores every unresolved escalation from the store regardless of the wearer's enabled flag, so a restart does not end the fan-out."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 442,
+        "description": "Only the dead-man section skips disabled wearers; the delivery loop (468-470) checks esc.resolved alone, so disabling the wearer does not stop its sends."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 525,
+        "description": "_pump_loop awaits pump_cycle serially and sleeps 5 s between cycles; there is no concurrency bound, per-wearer send budget or per-cycle deadline."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 249,
+        "description": "`cid = contact.get('id') or uuid.uuid4().hex[:12]`: each wearer POST without an id inserts a new contact row; no count constraint anywhere in the store."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 183,
+        "description": "wearer_for_token requires w.enabled=1, so after an admin disables the wearer its own resolve-open/resolve routes no longer authenticate and only an operator can stop the escalations."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 340,
+        "description": "Only `repeat_after_s < 60 or promote_after_s < 60` is refused; no maximum number of tiers or contacts."
+      },
+      {
+        "file": "server/app/escalation.py",
+        "line": 92,
+        "description": "first_due_t is the tier activation time, so every tier-0 contact is due in the first pump cycle after creation."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 20,
+        "description": "TIMEOUT_S = 15 bounds each individual transport call; nothing bounds the number of calls per cycle."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 61,
+        "description": "Telegram sends use the operator's bot token in the URL; EmailChannel (115-119) uses the operator's SMTP account with From=sender and To=the wearer-chosen address."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 155,
+        "description": "urlopen raises HTTPError (an OSError) for any non-2xx including Telegram 429, which is returned as a plain False with Retry-After ignored and no backoff; record_sent (main.py:497-498) then schedules the next attempt at the repeat cadence."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 278,
+        "description": "Operator resolution is one escalation per CSRF form POST; the API resolve route (main.py:285-301) is likewise one id per call; no bulk resolve exists."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 17,
+        "description": "mem_limit 512m is the only resource bound on the container; an OOM restart restores the unresolved escalations (main.py:545) rather than ending them."
+      },
+      {
+        "file": "openspec/specs/escalation-and-deadman/spec.md",
+        "line": 207,
+        "description": "Requirement: one wearer's alarm, silence, suspension or configuration SHALL never affect another wearer's escalation behaviour."
+      },
+      {
+        "file": "openspec/specs/wearer-management/spec.md",
+        "line": 6,
+        "description": "Wearers are first-class, isolated tenants on one instance (a family, a small organisation, a response group)."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "A valid wearer bearer token (an enrolled phone, a stolen phone or token, or a hostile tenant on a shared instance); no operator credential is needed."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "At least one outbound channel configured (CM_TELEGRAM_BOT_TOKEN, CM_SMTP_*, CM_NTFY_URL); the per-escalation multiplier is the number of configured channels each contact carries (up to three)."
+      },
+      {
+        "kind": "data_state",
+        "description": "The cross-wearer delay effect requires at least one other enabled wearer on the same instance; the operator-channel abuse does not."
+      },
+      {
+        "kind": "third_party_dependency",
+        "description": "The size of the delay to other wearers (sends x real transport latency, each at most 15 s) and of the operator's spend, reputation damage or bot/SMTP throttling depend on the channel providers' latency and account limits, which are outside the repository; the count and serial ordering of sends do not."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "The holder of a wearer token adds many contacts with third-party addresses, lowers its tier cadence to 60 s, and posts alarms with distinct detector strings; every pump cycle then relays attacker-chosen text to those addresses from the operator's identity and other wearers' alerts and silent-phone detection wait behind the queue until an operator resolves each escalation by hand.",
+      "payloads": [
+        "POST /api/v1/contacts  Authorization: Bearer <wearer token>  {\"name\":\"c<i>\",\"email\":\"r<i>@example.test\"}  for i in 0..19",
+        "POST /api/v1/tiers  Authorization: Bearer <wearer token>  {\"name\":\"primary\",\"repeat_after_s\":60,\"promote_after_s\":60}",
+        "POST /api/v1/alarm  Authorization: Bearer <wearer token>  {\"detector\":\"d<i>\"}  for i in 0..19 (any distinct string; e.g. attacker text)"
+      ],
+      "instructions": [
+        "Use the `appenv` fixture from server/tests/conftest.py (CM_DISABLE_PUMP=1; appenv.fakes are FakeChannel instances; wearer 'default' authenticates with wearer_headers()). Run with `cd server && .venv/Scripts/python.exe -m pytest -q <testfile>` only on a developer machine, never against a deployment.",
+        "For i in range(20): POST /api/v1/contacts with wearer_headers() and {'name': f'c{i}', 'email': f'r{i}@example.test'}; assert every response is 200. POST /api/v1/tiers with {'name':'primary','repeat_after_s':60,'promote_after_s':60}; assert 200.",
+        "For i in range(20): POST /api/v1/alarm with wearer_headers() and {'detector': f'd{i}'}; assert 20 distinct escalation_id values and len(appenv.main.escalations) == 20 (no 4xx, no cap).",
+        "Create a second wearer: POST /api/v1/admin/wearers with admin_headers() and {'id':'wb','name':'B'}; then `from app.wearers import hash_token; appenv.store.add_token('wb', hash_token('wbtoken'))`; POST /api/v1/contacts with wearer_headers('wbtoken') and {'name':'R','telegram_chat_id':'999999'}; POST /api/v1/alarm with wearer_headers('wbtoken') and {'detector':'impact'} (this escalation is created last, so it sits last in dict order).",
+        "Install `order = []` and set `appenv.fakes[ch].on_deliver = lambda a, *_: (order.append(a), time.sleep(0.005))` for ch in ('email','telegram'). t = time.time(); t0 = time.monotonic(); asyncio.run(appenv.main.pump_cycle(t)); wall = time.monotonic() - t0.",
+        "Assert len(appenv.fakes['email'].sent) == 400 (20 contacts x 20 escalations), that every email text contains its escalation's detector string, that order[-1] == '999999' and order.index('999999') == 400 (wearer B's real alarm is delivered only after all 400 of the attacker's sends), and that wall >= 400 * 0.005 (cycle time grows linearly with the attacker's send count; the next cycle's dead-man evaluation for every wearer cannot start before this returns).",
+        "asyncio.run(appenv.main.pump_cycle(t + 61)); assert len(appenv.fakes['email'].sent) == 800: the load recurs every 60 s with no further requests until an operator resolves each of the 20 escalations individually. Optionally POST /api/v1/admin/wearers/default/disable with admin_headers() and run pump_cycle(t + 122): the count rises to 1200, showing disable does not stop it."
+      ],
+      "observed_result": "Not executed in this run (source-only policy; no sandbox on this host). The source establishes deterministically that the fixture steps above return 200 for every contact and alarm with no limit, that one pump cycle produces contacts x escalations x channels sends through the operator's channel objects in creation order with the other wearer's send last, that the sends recur every repeat_after_s (minimum 60 s) across restarts and after the wearer is disabled, and that each send is awaited serially so the cycle's wall time is the sum of the individual transport times (each up to TIMEOUT_S=15 s). The real-world delay and operator spend scale with provider latency and limits, which were not measured."
+    },
+    "remediation": {
+      "strategy": "Enforce containment on the server regardless of what a wearer token asks for: cap contacts per wearer, cap open escalations per wearer and collapse further alarms into the newest open one, bound detector length and restrict kind to the phone-origin values, and decouple delivery so one wearer's queue cannot head-of-line block other wearers' sends or the dead-man check (per-wearer delivery tasks or a bounded concurrency budget per cycle, with the dead-man evaluation in its own task). These limits are enforced in server code on the wearer's own data, so they hold the spec's isolation invariant without trusting the phone.",
+      "code_changes": [
+        {
+          "file_name": "server/app/wearers.py",
+          "fixed_code": "MAX_CONTACTS_PER_WEARER = 10\n\n@router.post(\"/contacts\")\ndef upsert_contact(body: ContactIn, wearer_id: str | None = Query(default=None),\n                   authorization: str | None = Header(default=None)):\n    auth = _auth_any(authorization)\n    wid = scoped_wearer_id(auth, wearer_id)\n    errors = _validate_contact(body)\n    if errors:\n        raise HTTPException(422, {\"fields\": errors})\n    if body.tier_name not in {t[\"name\"] for t in db.list_tiers(wid)}:\n        raise HTTPException(422, {\"fields\": {\"tier_name\": \"unknown tier\"}})\n    existing = {c[\"id\"] for c in db.list_contacts(wid)}\n    if body.id not in existing and len(existing) >= MAX_CONTACTS_PER_WEARER:\n        raise HTTPException(422, {\"fields\": {\"contacts\": f\"at most {MAX_CONTACTS_PER_WEARER} contacts per wearer\"}})\n    cid = db.upsert_contact(wid, body.model_dump())\n    ..."
+        },
+        {
+          "file_name": "server/app/main.py",
+          "fixed_code": "from typing import Literal\nfrom pydantic import BaseModel, Field\n\nMAX_OPEN_ESCALATIONS_PER_WEARER = 3\n\nclass AlarmIn(BaseModel):\n    token: str = \"\"\n    detector: str = Field(min_length=1, max_length=64)\n    kind: Literal[\"watch_alarm\", \"fault\", \"test\"] = \"watch_alarm\"\n    lat: float | None = None\n    lon: float | None = None\n\n@app.post(\"/api/v1/alarm\")\ndef alarm(a: AlarmIn, authorization: str | None = Header(default=None)):\n    auth = require_wearer(authorization, a.token)\n    loc = f\"{a.lat},{a.lon}\" if a.lat is not None else \"\"\n    mine = [(eid, e) for eid, (wid, e) in escalations.items()\n            if wid == auth.wearer_id and not e.resolved]\n    for eid, e in mine:\n        if e.kind.value == a.kind and e.detector == a.detector:\n            return {\"escalation_id\": eid}\n    if len(mine) >= MAX_OPEN_ESCALATIONS_PER_WEARER:\n        db.add_event(auth.wearer_id, \"alarm_collapsed\", {\"detector\": a.detector, \"into\": mine[-1][0]})\n        return {\"escalation_id\": mine[-1][0]}   # fold into the newest open escalation\n    esc_id = create_escalation(auth.wearer_id, AlertKind(a.kind), a.detector, loc, time.time())\n    return {\"escalation_id\": esc_id}\n\n# pump: deliver per wearer under a bounded budget so one wearer cannot block the rest\n_SEND_CONCURRENCY = asyncio.Semaphore(4)\nMAX_SENDS_PER_WEARER_PER_CYCLE = 30\n\nasync def _deliver_escalation(esc_id, wid, esc, sends, budget):\n    ...  # existing per-send body wrapped in `async with _SEND_CONCURRENCY`, try/except per send,\n    ...  # stop after `budget` sends and record a 'send_suppressed' event for the rest\n\nasync def pump_cycle(now=None):\n    ...dead-man section unchanged...\n    per_wearer: dict[str, list] = {}\n    for esc_id, (wid, esc) in list(escalations.items()):\n        if not esc.resolved and (sends := esc.step(t)):\n            per_wearer.setdefault(wid, []).append((esc_id, esc, sends))\n    await asyncio.gather(*(_deliver_wearer(wid, items, t, MAX_SENDS_PER_WEARER_PER_CYCLE)\n                           for wid, items in per_wearer.items()), return_exceptions=True)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires a valid wearer bearer token; wearers are a small, semi-trusted population of enrolled phones. A lost or stolen phone, an exfiltrated token or a hostile beta tester on a shared instance suffices, and the requests are trivial JSON POSTs with no further control."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Unbounded, recurring messages carrying attacker-chosen text to arbitrary third-party addresses from the operator's SMTP identity and Telegram bot, persisting across restarts and after the wearer is disabled, stoppable only by an operator resolving each escalation one at a time; while the queue drains, every other wearer's alert delivery and silent-phone detection on the same instance are delayed by the serialized transport time, a safety-function impact whose magnitude depends on channel latency and provider limits."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Every multiplier (uncapped contacts, uncapped open escalations keyed on a free detector string, immediate due, 60 s minimum repeat, no pruning, restart restore, disable not honoured by delivery) and the strictly serial single-coroutine delivery are explicit in source with no limiting control in the app, the store, the compose files or the Caddyfile; only the real-world magnitude of the delay and spend is runtime-dependent and was not measured."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/app/main.py:heartbeat:suspended_until-unbounded-float-dashboard-overflow",
+    "title": "A wearer heartbeat with suspended_until = +Infinity makes every operator fleet and wearer page fail with HTTP 500 until a finite or null value is stored",
+    "description": "POST /api/v1/heartbeat (wearer bearer token) accepts `suspended_until` as a plain `float | None` (server/app/main.py:160) and stores it verbatim in deadman.suspended_until REAL (main.py:204, store.py:480-485). FastAPI hands an application/json body to starlette Request.json(), which is stdlib json.loads; that parser turns the non-standard literal `Infinity` and the grammar-valid number `1e999` into float('inf'), and pydantic's float field accepts inf by default (allow_inf_nan True). ui.wearer_states (server/app/ui.py:91-94) then evaluates `susp > time.time()` (True for +inf) and `int((susp - time.time()) / 60)`, which raises OverflowError. wearer_states is called for every enabled wearer by build_fleet (ui.py:106, used by GET /ui/ at 179 and GET /ui/fragments/fleet at 187) and for the affected wearer by _render_wearer (198, GET /ui/wearers/{wid}) and wearer_fragment (247). Starlette's ServerErrorMiddleware turns the exception into a 500, so one request from one wearer token (an enrolled phone or a stolen token on a shared instance) makes the fleet view unavailable to every operator, across all tenants, while the value stays stored. The pump loop, alarm delivery, ack links, /api/v1/status, /ui/operators and /ui/audit do not read the value and keep working. The value is overwritten by the wearer's next heartbeat: the real companion omits the key when not paused (android ServerClient.kt:173), so a legitimate phone that still heartbeats every 5 minutes clears it, which makes persistence depend on the attacker re-sending (cheap) or on the attacker holding the only copy of that wearer's token. Operator recovery without a sane heartbeat is manual: an admin can obtain a CSRF token from a still-rendering page such as /ui/operators and POST /ui/wearers/{wid}/disable (ui.py:451, redirects without rendering), or call POST /api/v1/admin/wearers/{wid}/disable with the admin session cookie (wearers.py:200); disabled wearers return before the suspended check (ui.py:57). Only +Infinity triggers the failure: NaN and -Infinity fail the `susp > time.time()` comparison and huge finite values produce a large but valid integer label. Corrections to the hunter's record: the sink is ui.py:94 (the comparison is at 92), not 88/91.",
+    "claimed_root_cause": "HeartbeatIn.suspended_until (server/app/main.py:160) has no range or finiteness validation and is persisted verbatim, and ui.wearer_states (server/app/ui.py:92-94) converts the stored float to int without guarding non-finite values; the stdlib JSON decoder used by Starlette and pydantic's default allow_inf_nan=True let +inf reach the model.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/main.py",
+        "line": 190,
+        "scope": "heartbeat",
+        "description": "Wearer-token route `POST /api/v1/heartbeat`; the body is validated as HeartbeatIn whose `suspended_until: float | None = None` (line 160) carries no ge/le constraint and no finiteness check."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/.venv/Lib/site-packages/fastapi/routing.py",
+        "line": 446,
+        "scope": "get_request_handler.app",
+        "description": "For content-type application/json FastAPI calls `await request.json()` (line 439 when no content-type is sent); starlette Request.json (requests.py:265, installed 1.3.1) is `json.loads(body)`, whose default parse_constant maps the `Infinity` literal to float('inf') and whose number grammar turns `1e999` into inf. The resulting Python dict is validated in python mode, where pydantic_core's float schema allows inf by default."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 204,
+        "scope": "heartbeat",
+        "description": "`db.set_suspended_until(auth.wearer_id, hb.suspended_until)` is executed unconditionally on every heartbeat with the raw value."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 482,
+        "scope": "Store.set_suspended_until",
+        "description": "Upsert into `deadman.suspended_until` (column added as REAL at store.py:110/117); get_suspended_until (487-491) returns the stored value unchanged."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/ui.py",
+        "line": 92,
+        "scope": "wearer_states",
+        "description": "`susp = db.get_suspended_until(wid)` (91) then `if susp and susp > time.time():` — True for +inf, False for NaN and -inf."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/ui.py",
+        "line": 94,
+        "scope": "wearer_states",
+        "description": "`f\"suspended {int((susp - time.time()) / 60)}m\"` — int() of an infinite float raises OverflowError; the exception propagates out of build_fleet (106) into fleet_page (179) and fleet_fragment (187), and out of _render_wearer (198) and wearer_fragment (247), becoming an HTTP 500 via Starlette's ServerErrorMiddleware."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/main.py",
+        "line": 160,
+        "description": "`suspended_until: float | None = None` on HeartbeatIn — no bounds, no finiteness validator; `Field` is not even imported in main.py (lines 18-20)."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 57,
+        "description": "`if not w[\"enabled\"]: return 0, [...]` — a disabled wearer returns before the suspended check, so disabling is the operator-side recovery."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 106,
+        "description": "build_fleet calls wearer_states(w) for every wearer returned by db.list_wearers(), so one wearer's stored +inf breaks the whole fleet page and fleet fragment for every operator."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 198,
+        "description": "_render_wearer (GET /ui/wearers/{wid}) also calls wearer_states; wearer_fragment does so at line 247."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 451,
+        "description": "POST /ui/wearers/{wid}/disable only needs an admin session plus CSRF and answers with a 303 redirect, so it remains usable with a CSRF token taken from a page that still renders (base.html:41 embeds it on every page with an operator; /ui/operators at 471 and /ui/audit at 556 do not call wearer_states)."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 200,
+        "description": "POST /api/v1/admin/wearers/{wearer_id}/disable — alternative recovery with the admin token or an admin session cookie."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/pydantic_core/core_schema.py",
+        "line": 694,
+        "description": "FloatSchema `allow_inf_nan` — default True; pydantic/config.py:448-449 documents the same default for ConfigDict, and HeartbeatIn sets no model_config."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/starlette/requests.py",
+        "line": 265,
+        "description": "`self._json = json.loads(body)` — stdlib decoder (installed starlette is 1.3.1 while server/requirements.txt:423 pins 1.6.0 for the image)."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/starlette/middleware/errors.py",
+        "line": 254,
+        "description": "ServerErrorMiddleware answers an unhandled exception with a 500 response (and re-raises for the server log), so the worker survives and the failure repeats on every page load."
+      },
+      {
+        "file": "android/app/src/main/java/org/cryomonitor/companion/ServerClient.kt",
+        "line": 173,
+        "description": "`suspendedUntilT?.let { put(\"suspended_until\", it / 1000.0) }` — the legitimate companion omits the key when not paused, so its next heartbeat (every 300 s, MonitorService.kt:1240) stores NULL and restores the dashboard unless the attacker re-sends."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 525,
+        "description": "_pump_loop and its callees never read suspended_until, so dead-man evaluation, escalation delivery and ack handling are unaffected; the impact is confined to the operator dashboard pages."
+      }
+    ],
+    "blockers": [
+      "No target code may run in this audit: the sqlite3 round-trip of float('inf') through Store.set_suspended_until/get_suspended_until (Python sqlite3 binding plus SQLite REAL storage) and the resulting OverflowError / HTTP 500 were not observed locally.",
+      "The venv under server/.venv contains starlette 1.3.1 whereas server/requirements.txt pins starlette 1.6.0 for the deployed image; the 1.6.0 Request.json source was not available to read, so 'stdlib json.loads with default parse_constant' is established only for the installed 1.3.1 (the grammar-valid `1e999` form would still yield inf under any float-producing parser)."
+    ],
+    "validation_plan": {
+      "local": "In server/tests with the existing fixtures (conftest.py: appenv_ui, ui_login, wearer_headers, WEARER_TOKEN enrols wearer 'default'): (1) csrf = ui_login(appenv_ui.client) FIRST, because ui_login itself GETs /ui/ and would trip the bug afterwards; (2) r = appenv_ui.client.post('/api/v1/heartbeat', content=b'{\"suspended_until\": Infinity}', headers={**wearer_headers(), 'Content-Type': 'application/json'}); assert r.status_code == 200 (repeat with b'{\"suspended_until\": 1e999}'); (3) assert appenv_ui.store.get_suspended_until('default') == float('inf'); (4) since TestClient(main.app) is built with the default raise_server_exceptions=True: with pytest.raises(OverflowError): appenv_ui.client.get('/ui/'); likewise for '/ui/fragments/fleet', '/ui/wearers/default' and '/ui/fragments/wearer/default'; (5) control: post {\"suspended_until\": null} (or omit the key) and assert GET /ui/ returns 200; also assert a sane value time.time()+3600 renders 200 with a 'suspended 59m' label; (6) recovery: POST /ui/wearers/default/disable with headers {'X-CSRF': csrf} after step 2 and assert GET /ui/ returns 200. Regression test for the fix: reject non-finite or out-of-range suspended_until with 422 (e.g. `Annotated[float, Field(ge=0, le=4e9)]` plus a math.isfinite field_validator) and guard the int() in ui.wearer_states so a bad stored value renders a label instead of raising.",
+      "deployment": "The owner, on the NAS, greps the monitor container log for 'OverflowError' with 'wearer_states' in the traceback to confirm the failure has never fired in production, and confirms that the only heartbeat sender is the companion (ServerClient.kt:173 sends a finite epoch-seconds value). No audit traffic is sent to the deployment."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "server/app/main.py:pump_cycle:disabled-wearer-escalations-keep-sending",
+    "title": "Disabling a wearer does not stop its open escalations, while removing the wearer's own ability to cancel them",
+    "description": "The admin's disable action (API or dashboard) only flips wearers.enabled. pump_cycle's delivery loop never consults that flag: a disabled wearer's unresolved escalations keep being delivered to the wearer's contacts every repeat_after_s (default 1800 s), keep promoting tiers while unacknowledged, and are restored unchanged after a restart because load_unresolved_escalations filters on resolved=0 only. At the same time wearer_for_token requires w.enabled=1, so the disabled wearer's phone can no longer call resolve-open or resolve to cancel a false alarm (401). The dead-man section of the same pump skips disabled wearers, so a PHONE_SILENT escalation opened before the disable is also never auto-recovered. The fleet view and the wearer-page badge show only 'disabled' for such a wearer (wearer_states returns early), masking the ESCALATING state while contacts are still being paged. The only remaining stop is an operator (dashboard, with a reason) or the env admin token resolving each escalation individually. Verified from source at d615619; not executed in this run.",
+    "root_cause": "pump_cycle's delivery loop (server/app/main.py:468-470) filters only on esc.resolved; Store.set_wearer_enabled (server/app/store.py:158-161) and both disable routes (server/app/wearers.py:201-208, server/app/ui.py:452-457) neither resolve nor suspend the wearer's open escalations, and startup restore (main.py:545-547 via store.py:290-296) ignores wearers.enabled.",
+    "intended_behavior": "openspec/specs/wearer-management/spec.md lines 10-12: a disabled wearer's tokens stop authenticating and their monitoring stops 'without alarming'. The dead-man section of pump_cycle already honours enabled (main.py:442-444). Disabling should likewise stop that wearer's open escalations (resolve them with an audited reason, or at least suspend delivery) so no further sends or tier promotions occur, immediately and across restarts.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/wearers.py",
+        "line": 206,
+        "scope": "disable_wearer",
+        "description": "Admin POST /api/v1/admin/wearers/{wearer_id}/disable (require_admin at line 203: env CM_ADMIN_TOKEN or an admin operator session) calls db.set_wearer_enabled(wearer_id, False) and logs a 'wearer_disabled' event; nothing else. The dashboard equivalent ui_disable_wearer (server/app/ui.py:452-457) does the same after CSRF."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 160,
+        "scope": "Store.set_wearer_enabled",
+        "description": "Single-column 'UPDATE wearers SET enabled=? WHERE id=?'; the escalations table and the in-memory main.escalations dict are untouched."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 189,
+        "scope": "Store.wearer_for_token",
+        "description": "'AND w.enabled=1': the disabled wearer's bearer token no longer resolves, so resolve_auth returns None and require_wearer raises 401 for POST /api/v1/alarm/resolve-open (main.py:264-282) and POST /api/v1/alarm/{esc_id}/resolve (main.py:285-301); the wearer cannot cancel."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/main.py",
+        "line": 469,
+        "scope": "pump_cycle",
+        "description": "'if esc.resolved: continue' is the only filter in the delivery loop; esc.step(t) (line 471) returns the due sends (repeat every tier.repeat_after_s, escalation.py:157-167) and promotes the next tier when unacked (escalation.py:149-155); each send is delivered at line 488 via _deliver to the contact's real address. After a restart, load_unresolved_escalations (main.py:545-547, store.py:290-296, 'WHERE resolved=0') restores the escalation regardless of wearers.enabled."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/main.py",
+        "line": 443,
+        "description": "Dead-man section: 'if not w[\"enabled\"]: continue' shows the flag is honoured there but not in the delivery loop that follows at 467-499; it also means _notify_phone_recovered (460-465) never runs for a disabled wearer, so a pre-existing PHONE_SILENT escalation is never auto-resolved."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 468,
+        "description": "'for esc_id, (wid, esc) in list(escalations.items())' iterates every escalation of every wearer; db.get_wearer(wid) at 474 is fetched only for the display name and its 'enabled' column is not read."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 158,
+        "description": "set_wearer_enabled performs a single-column UPDATE on wearers."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 290,
+        "description": "load_unresolved_escalations selects 'FROM escalations WHERE resolved=0 ORDER BY started_t' with no join on wearers.enabled."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 97,
+        "description": "DEFAULT_TIER repeat_after_s=1800, promote_after_s=600: with the fixture's single default tier a second delivery to every contact is due 1800 s after the first."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 237,
+        "description": "revoke_tokens likewise only revokes token rows (store.py:177-181); neither admin lifecycle action touches escalations."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 57,
+        "description": "wearer_states returns [{'disabled'}] immediately for a disabled wearer, so the fleet rows and wearer-page badge never show 'ESCALATING' (score 100) for it; only the 'Active escalations' list on the wearer page (ui.py:203-206, _wearer_live.html:11-30) still exposes a per-escalation Resolve form."
+      },
+      {
+        "file": "openspec/specs/wearer-management/spec.md",
+        "line": 10,
+        "description": "Disabled wearers: tokens stop authenticating and dead-man monitoring stops 'without alarming' (lines 10-12)."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "An admin (env CM_ADMIN_TOKEN while no admin operator exists, or an admin operator session) disables a wearer."
+      },
+      {
+        "kind": "data_state",
+        "description": "The wearer has at least one unresolved escalation whose tier snapshot contains deliverable contacts at the moment of disabling (contacts are frozen into the escalation at creation, main.py:108-131, so later contact edits do not stop it either)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Not an attacker action: the failing principals are the admin whose kill switch does not stop outbound paging and the disabled wearer who can no longer cancel a false alarm; the affected parties are the wearer's contacts (kept paged) and the operator's channel spend. The reproduction uses only the in-repo pytest fixture (server/tests/conftest.py appenv: tmp SQLite, CM_DISABLE_PUMP=1, FakeChannel replacing every channel) with no network and no live target.",
+      "payloads": [
+        "POST /api/v1/contacts {\"name\": \"R1\", \"telegram_chat_id\": \"111111\", \"ntfy_topic\": \"cm-r1\"} with Authorization: Bearer testtoken (via _setup_contacts in server/tests/test_delivery.py)",
+        "POST /api/v1/alarm {\"detector\": \"impact\", \"kind\": \"watch_alarm\", \"lat\": 52.5, \"lon\": 13.4} with Authorization: Bearer testtoken (via _alarm)",
+        "POST /api/v1/admin/wearers/default/disable with Authorization: Bearer admintok",
+        "POST /api/v1/alarm/resolve-open {} with Authorization: Bearer testtoken"
+      ],
+      "instructions": [
+        "Add a test to server/tests/test_delivery.py using the appenv fixture: call _setup_contacts(appenv); esc_id = _alarm(appenv); t0 = time.time(); _cycle(appenv, t0). Assert len(appenv.fakes['telegram'].sent) == 1 (first page to contact R1).",
+        "r = appenv.client.post('/api/v1/admin/wearers/default/disable', headers=admin_headers()); assert r.status_code == 200 and appenv.store.get_wearer('default')['enabled'] == 0.",
+        "r = appenv.client.post('/api/v1/alarm/resolve-open', json={}, headers=wearer_headers()); assert r.status_code == 401 (the disabled wearer can no longer cancel); assert not appenv.main.escalations[esc_id][1].resolved.",
+        "_cycle(appenv, t0 + 1801); assert len(appenv.fakes['telegram'].sent) == 2 and not appenv.main.escalations[esc_id][1].resolved: the disabled wearer's contact was paged again on the repeat cadence.",
+        "Optionally: rows = appenv.store.load_unresolved_escalations(); assert [e for _, e, _ in rows] == [esc_id] to show the escalation would be restored unchanged by a restart.",
+        "Run with: cd server && .venv/Scripts/python.exe -m pytest -q tests/test_delivery.py -k disabled (JDK/pebble not needed)."
+      ],
+      "observed_result": "Source-established, not executed in this run (execution policy forbids running target code on this host): after the disable the second pump_cycle must deliver a second send to each contact because no code between set_wearer_enabled and the delivery loop reads wearers.enabled and the escalation remains unresolved with last_sent_t = t0 and repeat_after_s = 1800; resolve-open must return 401 because wearer_for_token requires w.enabled=1. The escalation also remains in load_unresolved_escalations output."
+    },
+    "remediation": {
+      "strategy": "Make disable propagate to queued work. In pump_cycle's delivery loop, skip escalations whose wearer is not enabled and resolve them with an audited 'wearer_disabled' resolution (persisted, with a 'resolved' event, by='system'), so the stop also survives restarts. Do the same synchronously inside both disable routes (wearers.py disable_wearer and ui.py ui_disable_wearer) so the stop is immediate and the dashboard shows it. Consider sending the contacts already paged (esc.alerted_contacts()) an all-clear like _notify_phone_recovered does, since 'without alarming' should not leave responders with an open page. Add a regression test that disables a wearer mid-escalation and asserts no further sends, a resolved escalation and the audit event; re-enabling must not resurrect a resolved escalation.",
+      "code_changes": [
+        {
+          "file_name": "server/app/main.py",
+          "fixed_code": "    # escalation delivery\n    enabled = {w[\"id\"] for w in db.list_wearers() if w[\"enabled\"]}\n    for esc_id, (wid, esc) in list(escalations.items()):\n        if esc.resolved:\n            continue\n        if wid not in enabled:\n            # Disable is the admin's stop switch: nothing more leaves for\n            # this wearer, and the stop is visible in the audit stream.\n            esc.resolve(\"wearer_disabled\")\n            _persist_escalation(esc_id)\n            db.add_event(wid, \"resolved\", {\"id\": esc_id,\n                                           \"resolution\": \"wearer_disabled\",\n                                           \"by\": \"system\"})\n            continue\n        sends = esc.step(t)\n"
+        },
+        {
+          "file_name": "server/app/wearers.py",
+          "fixed_code": "@router.post(\"/admin/wearers/{wearer_id}/disable\")\ndef disable_wearer(wearer_id: str, request: Request,\n                   authorization: str | None = Header(default=None)):\n    require_admin(authorization, request)\n    if not db.get_wearer(wearer_id):\n        raise HTTPException(404, \"unknown wearer\")\n    db.set_wearer_enabled(wearer_id, False)\n    db.add_event(wearer_id, \"wearer_disabled\", {})\n    # Stop queued alerting now, not on the next pump cycle (the same helper\n    # should be called from ui.ui_disable_wearer).\n    from . import main as rt\n    rt.resolve_open_escalations(wearer_id, \"wearer_disabled\", by=\"admin\")\n    return {\"ok\": True}\n"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires an admin to disable a wearer while that wearer has an open escalation with deliverable contacts; no attacker action is involved, but removing a departed, misconfigured or abusive wearer during a false alarm is exactly the moment the switch is reached for, and the fleet view then hides the ongoing escalation."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "The admin's only lifecycle kill switch does not stop outbound alerting: contacts keep being paged on every repeat interval and tiers keep promoting until an operator or the admin token resolves each escalation by hand, the stop does not survive restarts, and the wearer is locked out of cancelling. Blast radius is the wearer's contacts and the operator's Telegram/ntfy/SMTP spend; it does not cross into other wearers' data."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Pure control flow verified line by line at d615619: the delivery loop's only filter is esc.resolved, both disable routes perform a single-column UPDATE, startup restore filters on resolved=0 only, and the token lookup's enabled=1 predicate is explicit. The reproduction uses only existing fixtures and helpers; no runtime or deployment fact is involved. Not executed in this run."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/app/main.py:pump_cycle:no-per-escalation-exception-isolation",
+    "title": "A non-OSError raised by one channel send stalls delivery of every later escalation on the instance; a wearer-supplied alarm detector string containing a lone UTF-16 surrogate is the source-visible trigger",
+    "description": "pump_cycle (server/app/main.py:468-499) delivers the due sends of every unresolved escalation of every wearer sequentially in one loop with no per-escalation exception handling; the only handler wraps the whole cycle in _pump_loop (525-531) and sleeps 5 s. record_sent and _persist_escalation (497-499) run only after all sends of an escalation, so any exception escaping a send leaves that escalation's contacts with last_sent_t=None, Escalation.step re-declares the same sends on the next cycle (escalation.py:162-164), and no escalation later in dict insertion order (creation order; ORDER BY started_t on restart, store.py:293-296) is ever stepped until the poisoned one is resolved. The channel classes convert only OSError into a failed send: NtfyChannel.deliver calls text.encode() while building the request (channels.py:87) before _urlopen_ok's try/except OSError (151-156), and EmailChannel.deliver calls msg.set_content(content) (113) before its try/except OSError (114-122); stdlib email.contentmanager._encode_text does string.encode('utf-8'), so a message text containing a lone surrogate raises UnicodeEncodeError (a ValueError, not an OSError) in both. TelegramChannel is not affected (json.dumps with ensure_ascii escapes the surrogate). The alarm body's detector (AlarmIn.detector, main.py:167) is an unconstrained str copied verbatim into every message by render_message (channels.py:32-33). The JSON body path admits such a value as far as locally readable sources go: FastAPI 0.141.1 reads JSON bodies via request.json() (installed fastapi/routing.py:439,446), Starlette Request.json uses stdlib json.loads (installed starlette/requests.py:265; the same in the pinned 1.6.0), the stdlib decoder appends an unpaired \\uDxxx escape as a lone surrogate without error (Python Lib/json/decoder.py:118-126), and the decoded dict is validated with TypeAdapter.validate_python (installed fastapi/_compat/v2.py:182), not pydantic's JSON parser. Persistence succeeds (json.dumps escapes the surrogate, store.py:288) and the escalation is restored unchanged at startup (main.py:545-547). If the value is accepted, a wearer who has an ntfy or email contact (contacts are managed with the wearer's own token, wearers.py:305-318, on an instance with CM_NTFY_URL or SMTP configured; docker-compose.yml:34 defaults CM_NTFY_URL to https://ntfy.sh) can post one alarm after which every pump cycle raises at that escalation, 'pump cycle failed' is logged every 5 s, that escalation's sends are never recorded, and every escalation created later for any wearer, including watch alarms and dead-man phone-silent advisories, is never delivered. The same string breaks the operator's recovery surfaces while it is present: the wearer page and live fragment render e.detector (ui.py:201, 250; _wearer_live.html:15), the wearer page and the audit page render event details containing the alarm event's detector (ui.py:205-207 and wearer.html:128 for the last 30 events of that wearer; ui.py:558-562 and audit.html:8 for the last 200 events overall), and GET /api/v1/status returns detector in active_escalations and recent_events (main.py:365, 373-382); Starlette encodes HTML and JSON responses as UTF-8 (installed starlette/responses.py:53, 195-201), so these requests fail with 500 and the escalation id the operator needs is not shown. Recovery is possible but out-of-band: the id from the SQLite escalations table or from the 'restored active escalation' log line after a restart (main.py:547), then POST /ui/escalations/{id}/resolve with a CSRF token from the fleet page (which does not render detector), or /api/v1/alarm/{id}/resolve with CM_ADMIN_TOKEN only while no operator accounts exist (main.py:285-301 does not accept the cookie path). The wearer page stays broken until the alarm event leaves that wearer's last 30 events. Separately from this trigger, the structural weakness remains for any non-OSError raised by a transport (for example http.client exceptions or an encode error in a wearer name), which is hardening unless a lower-trust trigger exists.",
+    "claimed_root_cause": "The delivery loop in pump_cycle has no per-escalation exception isolation or quarantine and advances record_sent/_persist_escalation only after all sends of an escalation succeed, while the channel deliver() methods convert only OSError into a failed send and an unconstrained, unvalidated detector string reaches the UTF-8 encode step in NtfyChannel and EmailChannel.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/main.py",
+        "line": 248,
+        "scope": "alarm",
+        "description": "POST /api/v1/alarm with a wearer bearer token (require_wearer); AlarmIn.detector (line 167) is a required str with no length or character constraint. FastAPI decodes the JSON body with stdlib json.loads and validates the resulting dict in Python mode."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 134,
+        "scope": "create_escalation",
+        "description": "detector is stored on the Escalation (line 139) and persisted as JSON (json.dumps escapes a lone surrogate, so persistence succeeds); it is also written into the 'alarm' event (140-142); the record is restored unchanged at startup (545-547)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 486,
+        "scope": "pump_cycle",
+        "description": "render_message embeds detector into the message text and _deliver (409-411) runs channel.deliver in a thread via asyncio.to_thread; any exception propagates into the delivery loop at line 488."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/channels.py",
+        "line": 87,
+        "scope": "NtfyChannel.deliver",
+        "description": "data=text.encode() runs while building the Request, before _urlopen_ok's try/except OSError (151-156); a lone surrogate raises UnicodeEncodeError, a ValueError subclass. EmailChannel.deliver line 113 (msg.set_content, which encodes the text as UTF-8 in email.contentmanager._encode_text) is the equivalent pre-try step before its except OSError at 121."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 498,
+        "scope": "pump_cycle",
+        "description": "esc.record_sent and _persist_escalation (497-499) are reached only after all sends of the escalation; on the exception they are skipped, so step() (escalation.py:162-164) re-declares the same sends on the next cycle and the loop never reaches escalations inserted after this one."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/main.py",
+        "line": 530,
+        "scope": "_pump_loop",
+        "description": "The whole cycle's exception is logged ('pump cycle failed') and the loop sleeps 5 s; every escalation after the poisoned one in insertion order, for any wearer, is never delivered until the poisoned escalation is resolved."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/main.py",
+        "line": 468,
+        "description": "for esc_id, (wid, esc) in list(escalations.items()): no try/except inside the loop body; the only handler is in _pump_loop (527-530)."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 155,
+        "description": "except OSError: return False is the only failure conversion in _urlopen_ok; EmailChannel line 121 likewise catches only OSError."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 33,
+        "description": "render_message interpolates detector unchanged into the alert body."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 167,
+        "description": "AlarmIn.detector: str with no max_length or validator."
+      },
+      {
+        "file": "server/app/escalation.py",
+        "line": 162,
+        "description": "step() re-declares a contact's sends whenever last_sent_t is None and t >= first_due_t; record_sent (105-109) is the only thing that sets last_sent_t."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 201,
+        "description": "Active escalations including e.detector are rendered into the wearer page (and the live fragment at 250); events detail at 205-207 includes the alarm event's detector; the HTMLResponse UTF-8 encode fails on a lone surrogate."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 558,
+        "description": "audit_page renders the last 200 events' detail (including the alarm event's detector) into audit.html."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 365,
+        "description": "_wearer_status returns detector in the JSON status payload; Starlette's JSONResponse renders with ensure_ascii=False then encodes UTF-8 and would raise for a lone surrogate."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 285,
+        "description": "resolve by id uses resolve_auth only (no operator-cookie path), so once operator accounts exist the admin recovery must go through the UI resolve POST (ui.py:278-297), which needs the escalation id that the broken pages no longer show."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 305,
+        "description": "POST /api/v1/contacts accepts a wearer's own token (_auth_any, 290-294); _validate_contact (252-264) constrains ntfy_topic and email formats only, so a wearer can give themselves an ntfy or email contact."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 34,
+        "description": "CM_NTFY_URL defaults to https://ntfy.sh, so the ntfy channel is configured on a default deployment."
+      },
+      {
+        "file": "server/tests/test_delivery.py",
+        "line": 74,
+        "description": "Existing failure coverage (test_failed_channel_retries_on_repeat_cadence) only exercises deliver() returning False; no test covers deliver() raising."
+      },
+      {
+        "file": "openspec/specs/escalation-and-deadman/spec.md",
+        "line": 207,
+        "description": "Requirement: one wearer's alarm or configuration SHALL never affect another wearer's escalation behavior."
+      }
+    ],
+    "blockers": [
+      "Whether pydantic-core 2.46.4 (compiled extension; Rust source not present in server/.venv) accepts a Python str containing a lone UTF-16 surrogate during validate_python of an unconstrained `str` field. The JSON-decoder half of the hunter's blocker is settled from locally readable sources (FastAPI routing.py:439/446 -> Starlette Request.json -> stdlib json.loads -> Lib/json/decoder.py:118-126 appends the lone surrogate; fastapi/_compat/v2.py:182 then calls validate_python); only the pydantic-core acceptance remains unverifiable without execution, and it decides whether the value can enter detector at all.",
+      "UnicodeEncodeError propagation through asyncio.to_thread into pump_cycle, the skipped record_sent, and the resulting non-delivery of later escalations are runtime behaviours not demonstrated in this run because no target code may execute under the run's policy.",
+      "If the entry path is closed by pydantic-core, the structural head-of-line weakness in pump_cycle remains but needs a different non-OSError trigger that a wearer does not control; the candidate would then be hardening rather than a wearer-triggerable availability failure."
+    ],
+    "validation_plan": {
+      "local": "Run from server/ with the existing pytest fixtures (conftest.py appenv; FakeChannel; CM_DISABLE_PUMP=1), noting that server/.venv is Python 3.14.3 with starlette 1.3.1 while requirements.txt pins Python 3.12 / starlette 1.6.0 (Request.json is stdlib json.loads in both). Step 1 (entry): POST /api/v1/alarm with wearer_headers(), header Content-Type: application/json and a raw body (content=, not json=) that is a JSON object with kind 'watch_alarm' and a detector string consisting of the single JSON escape sequence for U+DCFF (a lone low surrogate). If the status is 422, pydantic-core rejects lone surrogates and the candidate drops to hardening; if 200, continue. Step 2 (head-of-line stall): before step 1, create a contact for 'default' with an ntfy_topic via POST /api/v1/contacts; replace appenv.fakes['ntfy'].deliver with a function that calls text.encode() (mirroring channels.py:87) and then returns True; after step 1, create a second wearer via POST /api/v1/admin/wearers with admin_headers(), obtain its token through an enroll code and POST /api/v1/enroll, give it a telegram contact, and post an ordinary alarm (detector 'impact') as that wearer. Then run asyncio.run(appenv.main.pump_cycle(t)) inside pytest.raises(UnicodeEncodeError) and assert: appenv.fakes['telegram'].sent == [] (the second wearer's alarm was never delivered), the default escalation's contact_states in appenv.store.get_escalation('default', esc_id) still have last_sent_t None and attempts 0, and a second pump_cycle(t + 10) raises again with the telegram fake still empty. Control: resolve the poisoned escalation via POST /api/v1/alarm/resolve-open as 'default' and confirm the next pump_cycle delivers the second wearer's alarm. Step 3 (operator surface): with appenv_ui and conftest.ui_login, GET /ui/wearers/default and GET /api/v1/status with wearer_headers() inside pytest.raises(UnicodeEncodeError) (TestClient re-raises server exceptions by default), confirming the recovery pages fail while the value is present. All steps use the in-process TestClient and fake channels; nothing is sent to ntfy, SMTP or Telegram.",
+      "deployment": "Not applicable: the local fixture settles the claim; do not send a surrogate-bearing alarm to a live instance. The owner may only confirm from the deployed .env whether CM_NTFY_URL or CM_SMTP_HOST is set (either makes a wearer able to self-assign an affected channel)."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "server/app/operators.py:check_rate_limit:username-lockout",
+    "title": "Login throttle is a hard lockout keyed on the bare username: five anonymous wrong passwords keep the named operator out of the dashboard",
+    "description": "POST /ui/login (router prefix /ui, server/app/ui.py:28,141-146) needs no session, cookie or CSRF token. operators.login (server/app/operators.py:92-103) calls check_rate_limit before it looks up the operator or verifies the password, and check_rate_limit (operators.py:85-89) raises HTTPException(429) whenever the login_attempts table holds five or more rows for key u:<username> in the last 900 s OR five or more rows for a:<client>. Every failed login, from any address, inserts both u:<username> and a:<client> rows (operators.py:99-100, store.py:428-433). The u: key carries no address binding, so an anonymous client that knows or guesses an operator's exact username (strip() is the only normalisation, ui.py:145) sends five wrong passwords, and from then on the real operator's correct password from any other address is answered 429 with no cm_session cookie, for as long as the attacker tops the window up (one wrong password each time one ages out, at most five per 15 minutes per attacker address since the 429 is raised before the attempt is recorded). The repository's own test (server/tests/test_dashboard.py:38-49) asserts that the correct password receives 429 after five wrong attempts, but it issues all requests from the same TestClient address, so it does not by itself separate the u: key from the a: key; the OR at operators.py:87-88 does. Existing sessions (7-day TTL, operators.py:28) stay valid, and alert delivery, contact ack links and Telegram/ntfy acks are unaffected, so the result is denial of new dashboard logins for the targeted operator. Aggravation that is deployment-dependent and not demonstrated here: the base compose leaves FORWARDED_ALLOW_IPS at 127.0.0.1 (server/docker-compose.yml:50-56) and its comment states that behind an unlisted reverse proxy every caller shares the proxy's address and ONE login rate-limit bucket; in that configuration the a:<client> key collapses and the same five requests lock every operator out without any username knowledge.",
+    "root_cause": "check_rate_limit (server/app/operators.py:87-89) treats the per-username counter as a hard block, and that counter is fed by failures recorded for any caller (operators.py:99) with no binding to the calling address, so an unauthenticated third party controls whether a named operator may authenticate.",
+    "intended_behavior": "Password guessing against an account is slowed, but a legitimate operator presenting the correct password from their own address can always sign in; failures caused by a stranger must not deny another principal access.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/ui.py",
+        "line": 142,
+        "scope": "login_post",
+        "description": "Unauthenticated POST /ui/login (APIRouter prefix /ui at ui.py:28) with form fields username and password; no cookie, session or CSRF token is required."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/ui.py",
+        "line": 145,
+        "scope": "login_post",
+        "description": "client = request.client.host (line 144); ops.login(username.strip(), password, client) is called with the attacker-chosen username."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/operators.py",
+        "line": 94,
+        "scope": "login",
+        "description": "check_rate_limit(username, client) runs before db.get_operator and verify_password, so the supplied password is never examined once the counter is full."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/operators.py",
+        "line": 99,
+        "scope": "login",
+        "description": "On any failed attempt db.record_login_attempt(f\"u:{username}\") and (line 100) f\"a:{client}\" are inserted; the u: key has no address component, so a stranger's failures count against the operator."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 437,
+        "scope": "login_attempts_since",
+        "description": "SELECT COUNT(*) FROM login_attempts WHERE key=? AND t > ? counts the attacker-written u:<username> rows in the 900 s window."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/operators.py",
+        "line": 89,
+        "scope": "check_rate_limit",
+        "description": "raise HTTPException(429, 'too many login attempts; wait 15 minutes') when the u:<username> count >= LOGIN_MAX_ATTEMPTS (line 87) or the a:<client> count >= LOGIN_MAX_ATTEMPTS (line 88); the legitimate operator's correct password from a different address is refused."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/operators.py",
+        "line": 30,
+        "description": "LOGIN_MAX_ATTEMPTS = 5, commented 'per account and per address, per window'; LOGIN_WINDOW_S = 900 (line 29)."
+      },
+      {
+        "file": "server/app/operators.py",
+        "line": 87,
+        "description": "The condition is an OR of the per-username count and the per-address count; either alone triggers the 429."
+      },
+      {
+        "file": "server/app/operators.py",
+        "line": 99,
+        "description": "record_login_attempt(f\"u:{username}\") on every failure regardless of source address; the 429 at line 89 is raised before this, so one address contributes at most five rows per window."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 428,
+        "description": "record_login_attempt inserts (key, t) and prunes rows older than 86400 s; login_attempts_since (lines 435-438) counts rows by exact key and time."
+      },
+      {
+        "file": "server/tests/test_dashboard.py",
+        "line": 49,
+        "description": "test_login_failures_are_generic_and_rate_limited asserts status 429 for the correct password after five wrong attempts for UI_ADMIN[0] ('even the right password now'); all requests come from the fixture's single TestClient address."
+      },
+      {
+        "file": "server/tests/conftest.py",
+        "line": 12,
+        "description": "UI_ADMIN = ('adminui', 's3cretpass!') is the bootstrapped admin used by the appenv_ui fixture (lines 84-91); ui_login (lines 94-105) expects 303 and a cm_session cookie on success."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 53,
+        "description": "Comment: unless FORWARDED_ALLOW_IPS names the proxy, 'every caller shares the proxy's address and ONE rate-limit bucket (login, enrollment)'; default at line 56 is 127.0.0.1."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Anonymous; only network reachability of POST /ui/login is needed (published on all interfaces by the base compose, behind TLS on the VPS and NAS deployments)."
+      },
+      {
+        "kind": "data_state",
+        "description": "The attacker must supply the operator's exact username (after whitespace strip); the bootstrap admin name is owner-chosen and not enumerable from the login page."
+      },
+      {
+        "kind": "timing_dependency",
+        "description": "The lockout lasts only while the attacker keeps at least five failures inside the rolling 900 s window; at most five of the attacker's own requests per address are recorded per window because the 429 is raised before recording."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Not demonstrated, deployment-dependent aggravation: if the server sits behind a reverse proxy whose address is not in FORWARDED_ALLOW_IPS (base compose default 127.0.0.1), request.client.host is the proxy for every caller and the a:<client> bucket locks all operators out after five anonymous failures with no username needed."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An unauthenticated client that can reach /ui/login and knows or guesses an operator username wants to keep that operator out of the dashboard, for example during an escalation.",
+      "payloads": [
+        "POST /ui/login  Content-Type: application/x-www-form-urlencoded  username=<operator>&password=wrong   (five times within 900 s from the attacker's address, then one more each time a row ages out)",
+        "POST /ui/login  Content-Type: application/x-www-form-urlencoded  username=<operator>&password=<correct>   (from the operator's own address: 429, no Set-Cookie cm_session)"
+      ],
+      "instructions": [
+        "Existing assertion (same address for attacker and operator): cd server && .venv/Scripts/python.exe -m pytest -q tests/test_dashboard.py::test_login_failures_are_generic_and_rate_limited — five wrong passwords for UI_ADMIN[0] return 401, then the correct password returns 429.",
+        "Isolated check that the u:<username> key alone locks the operator out from a different address (add temporarily to server/tests/test_dashboard.py and run with the same pytest command): from fastapi.testclient import TestClient; def test_stranger_locks_out_operator(appenv_ui): stranger = TestClient(appenv_ui.main.app, client=(\"203.0.113.9\", 50000)); for _ in range(5): assert stranger.post(\"/ui/login\", data={\"username\": UI_ADMIN[0], \"password\": \"wrong\"}, follow_redirects=False).status_code == 401; r = appenv_ui.client.post(\"/ui/login\", data={\"username\": UI_ADMIN[0], \"password\": UI_ADMIN[1]}, follow_redirects=False); assert r.status_code == 429 and \"cm_session\" not in r.cookies",
+        "The fixture's own client address ('testclient') has no a: rows, so the 429 observed in step 2 can only come from the u:adminui count (operators.py:87). Note that X-Forwarded-For is not honoured by TestClient (uvicorn's ProxyHeadersMiddleware is not in the test path), so the second address must be set through the TestClient client= argument, not a header."
+      ],
+      "observed_result": "Source-established and not executed in this run (policy forbids running target code): operators.py:85-89 refuses the login with 429 once five u:<username> rows exist in the window, independent of the a:<client> count, and tests/test_dashboard.py:38-49 asserts the 429 on the correct password after five wrong attempts. Expected result of the isolated check: five 401s for the stranger, then 429 and no cm_session cookie for the operator's correct password from a different address."
+    },
+    "remediation": {
+      "strategy": "Keep the per-address counter as the hard block, but stop a stranger's failures from locking the account: key the account bucket on (username, client address) so that only failures from the operator's own address can block that address, and keep a plain per-username counter only to raise an audit event when an account is under sustained guessing. Add a regression test in which five failures from a second TestClient address do not prevent ui_login from the fixture's address. Separately, every deployment behind a proxy must set CM_FORWARDED_ALLOW_IPS to the proxy's address, otherwise the a:<client> bucket is still one shared lockout for all callers (docker-compose.yml:50-56). The existing test test_login_failures_are_generic_and_rate_limited keeps passing because the same address hits the a: and u:@address buckets.",
+      "code_changes": [
+        {
+          "file_name": "server/app/operators.py",
+          "fixed_code": "LOGIN_WINDOW_S = 900\nLOGIN_MAX_ATTEMPTS = 5            # per address, and per account from one address, per window\nLOGIN_USER_ALERT_ATTEMPTS = 20    # per account from any address: audit only, never a lockout\n\n\ndef check_rate_limit(username: str, client: str) -> None:\n    since = time.time() - LOGIN_WINDOW_S\n    # The account bucket is bound to the calling address: a stranger's\n    # failures for this username never lock the operator out from\n    # another address. The address bucket stays a hard block.\n    if (db.login_attempts_since(f\"u:{username}@{client}\", since) >= LOGIN_MAX_ATTEMPTS or\n            db.login_attempts_since(f\"a:{client}\", since) >= LOGIN_MAX_ATTEMPTS):\n        raise HTTPException(429, \"too many login attempts; wait 15 minutes\")\n\n\ndef login(username: str, password: str, client: str) -> tuple[str, Operator] | None:\n    \"\"\"Returns (raw session id, operator) or None. Generic failures only.\"\"\"\n    check_rate_limit(username, client)\n    op = db.get_operator(username)\n    ok = op is not None and bool(op[\"enabled\"]) and \\\n        verify_password(password, op[\"pw\"])\n    if not ok:\n        db.record_login_attempt(f\"u:{username}@{client}\")\n        db.record_login_attempt(f\"a:{client}\")\n        db.record_login_attempt(f\"u:{username}\")\n        db.add_event(None, \"login_failed\", {\"operator\": username,\n                                            \"client\": client})\n        if db.login_attempts_since(f\"u:{username}\",\n                                   time.time() - LOGIN_WINDOW_S) == LOGIN_USER_ALERT_ATTEMPTS:\n            db.add_event(None, \"login_guessing_suspected\",\n                         {\"operator\": username, \"client\": client})\n        return None\n    raw = secrets.token_urlsafe(32)\n    csrf = secrets.token_urlsafe(24)\n    db.create_session(_hash_session(raw), username, csrf,\n                      time.time() + SESSION_TTL_S)\n    db.add_event(None, \"login\", {\"operator\": username, \"client\": client})\n    return raw, Operator(username, op[\"role\"], csrf)\n"
+        },
+        {
+          "file_name": "server/tests/test_dashboard.py",
+          "fixed_code": "from fastapi.testclient import TestClient\n\n\ndef test_a_strangers_failures_do_not_lock_the_operator_out(appenv_ui):\n    stranger = TestClient(appenv_ui.main.app, client=(\"203.0.113.9\", 50000))\n    for _ in range(5):\n        r = stranger.post(\"/ui/login\",\n                          data={\"username\": UI_ADMIN[0], \"password\": \"wrong\"},\n                          follow_redirects=False)\n        assert r.status_code == 401\n    # the stranger's own address is now blocked ...\n    r = stranger.post(\"/ui/login\",\n                      data={\"username\": UI_ADMIN[0], \"password\": \"wrong\"},\n                      follow_redirects=False)\n    assert r.status_code == 429\n    # ... but the operator, from another address, still gets in\n    assert ui_login(appenv_ui.client)\n"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Unauthenticated and trivial (five form posts per 15 minutes), but the attacker must know or guess the exact operator username, the login page reveals nothing about accounts, and the deployments are small personal instances; the no-username variant needs a proxy left out of FORWARDED_ALLOW_IPS, which is deployment-dependent."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Denies new dashboard logins for the targeted operator while the attack continues; existing 7-day sessions, alert delivery, contact ack links and Telegram/ntfy acknowledgements are unaffected, and no data or privilege is gained."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The complete path from the anonymous form POST to the 429 is in repository source with deterministic logic (operators.py:85-100, store.py:428-438), and the repository's own test asserts the 429 on the correct password after five failures; the only unverified element is the deployment-dependent shared-bucket aggravation, which is recorded as a condition and not relied on."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "server/app/store.py:exchange_enroll_code:select-then-update-non-atomic",
+    "title": "Enrol-code exchange checks single use with a SELECT outside the write transaction and burns the code with an unconditional UPDATE, so two overlapping requests mint two wearer tokens from one code",
+    "description": "POST /api/v1/enroll (anonymous) hands the normalised code's SHA-256 and a fresh token hash to Store.exchange_enroll_code (server/app/wearers.py:165-166). That method opens its own sqlite3 connection per call with the default transaction mode (server/app/store.py:127-132: no isolation_level or autocommit argument, so CPython's legacy transaction control applies and an implicit BEGIN is issued only before INSERT/UPDATE/DELETE/REPLACE; `with conn:` only commits or rolls back). The SELECT at store.py:205-210 that enforces used_t IS NULL therefore runs as its own autocommit read, whose WAL read lock is released as soon as fetchone() drains the single row. The UPDATE at 213 then takes the write lock but carries no `used_t IS NULL` predicate and its rowcount is ignored, and the token INSERT at 215 runs unconditionally. Because sync FastAPI endpoints run in a threadpool (store.py:1-5), two requests carrying the same valid code can both execute their SELECT before either UPDATE: the first takes the write lock and commits; the second's UPDATE (first statement of a deferred transaction, no snapshot held) waits in SQLite's busy handler (timeout=30 s), retries with a fresh snapshot, overwrites used_t, inserts its own token row and commits. Both calls return the wearer id and both callers receive HTTP 200 with a distinct live, non-expiring wearer bearer token (wearers.py:170), violating the single-use guarantee that is the strongest source-visible control at the anonymous-to-wearer boundary. The attacker must already possess a valid unexpired code, so the incremental effect over simply using the code first is concealment: the legitimate phone's enrolment also succeeds instead of failing with 410, and the only remaining signal is a second `enrolled` event with a different client address in the wearer's event log (wearers.py:169). The codebase elsewhere does use rowcount-checked conditional updates (store.py:181, 275, 517, 557); this method is the outlier. Not executed in this run (source-only policy); the behaviour follows from the repository source plus the documented defaults of the digest-pinned python:3.12.14 interpreter (server/Dockerfile:4) and SQLite WAL locking, and a deterministic pytest reproduction against the existing fixtures is given below.",
+    "root_cause": "server/app/store.py:201-217 implements a check-then-act across two statements that are not covered by one write transaction: the uniqueness check is a SELECT executed before any lock is taken (the connection at store.py:127 keeps sqlite3's default legacy transaction control, which begins the implicit transaction only at the first DML statement), and the burn at store.py:213 is `UPDATE enroll_codes SET used_t=? WHERE code_hash=?` with no `used_t IS NULL` predicate and no rowcount check, so a second writer that already passed the SELECT re-burns the code and still reaches the token INSERT at store.py:215.",
+    "intended_behavior": "The method's docstring (store.py:203) and the architecture's trust-boundary table state that the code is burned and the token minted atomically: exactly one token may ever be issued for one enrol code, and any second exchange of the same code, concurrent or sequential, must return None so the endpoint answers 410 (wearers.py:167-168) and the duplicate is visible to the wearer and operator.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/wearers.py",
+        "line": 157,
+        "scope": "enroll",
+        "description": "Anonymous POST /api/v1/enroll handler (sync, runs in the threadpool). After the per-client-address rate check (158-160, 10/h) and the 8-symbol Crockford regex (161-163) it generates a token and calls db.exchange_enroll_code(hash_token(code), time.time(), hash_token(new_token)) at 165-166. Two concurrent requests with the same code each reach this call on their own thread."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 127,
+        "scope": "Store._conn",
+        "description": "sqlite3.connect(self.path, timeout=30) per call with no isolation_level/autocommit argument: under CPython's default legacy transaction control an implicit BEGIN is issued only before INSERT/UPDATE/DELETE/REPLACE; `with conn:` at 132 only commits or rolls back. Each request therefore has its own connection and no transaction is open when the method's SELECT runs."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 205,
+        "scope": "exchange_enroll_code",
+        "description": "SELECT ... WHERE e.code_hash=? AND e.used_t IS NULL AND e.expires_t > ? AND w.enabled=1 (205-210) executes as an autocommit read; fetchone() drains the single row (code_hash is the primary key), the statement is reset and the WAL read lock is dropped. Both overlapping requests observe used_t IS NULL."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/store.py",
+        "line": 213,
+        "scope": "exchange_enroll_code",
+        "description": "UPDATE enroll_codes SET used_t=? WHERE code_hash=? begins the implicit write transaction. It has no `used_t IS NULL` predicate and its rowcount is not inspected; the second writer waits in the busy handler for the first commit, retries with a fresh snapshot and overwrites used_t."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/store.py",
+        "line": 215,
+        "scope": "exchange_enroll_code",
+        "description": "INSERT INTO tokens (token_hash, wearer_id, created_t) runs for both requests regardless of which one burned the code; both commit at `with conn:` exit and return the wearer id, so wearers.py:170 answers 200 with a distinct live wearer bearer token to each caller."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/store.py",
+        "line": 203,
+        "description": "Docstring promises 'Atomically burn the code and mint the token', the invariant the implementation does not hold under concurrency."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 127,
+        "description": "sqlite3.connect(self.path, timeout=30): default legacy transaction control (no isolation_level=None/autocommit), a 30 s busy timeout that lets the second writer wait for the first commit rather than fail."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 132,
+        "description": "`with conn:  # one transaction per method call` only commits/rolls back; it does not begin a transaction, so the comment overstates what is enforced."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 213,
+        "description": "UPDATE enroll_codes SET used_t=? WHERE code_hash=? is unconditional on used_t and its rowcount is discarded."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 215,
+        "description": "Token INSERT happens whether or not this request was the one that burned the code."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 1,
+        "description": "Module docstring: methods are synchronous and FastAPI sync endpoints run in a threadpool, so overlapping enrol requests execute concurrently on separate connections."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 169,
+        "description": "Each successful exchange logs an `enrolled` event with the client address; two such events are the only remaining detection signal once both exchanges succeed."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 170,
+        "description": "Returns {token, wearer_id} with 200 to every caller for which exchange_enroll_code returned a wearer id."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 275,
+        "description": "Calibration: other store writes (also 181, 517, 557) check rowcount on conditional UPDATEs; exchange_enroll_code is the outlier."
+      },
+      {
+        "file": "server/tests/test_wearers_api.py",
+        "line": 25,
+        "description": "test_enrollment_flow_and_single_use exercises only the sequential case (first 200, then 410 at 27-28); no concurrent test exists."
+      },
+      {
+        "file": "server/Dockerfile",
+        "line": 4,
+        "description": "Deployed interpreter is digest-pinned python:3.12.14-slim, whose sqlite3 module defaults to legacy transaction control (implicit BEGIN only before DML)."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "No credentials: /api/v1/enroll is anonymous. Each party needs one request, well under the 10/h per-client-address limit (wearers.py:131-140), even when both share one bucket."
+      },
+      {
+        "kind": "data_state",
+        "description": "A valid, unexpired (24 h default TTL, wearers.py:25), not-yet-used enrol code for an enabled wearer must be known to both callers; the code is 2^40-entropy and handed to the wearer out of band, so this is possession of the code, not guessing."
+      },
+      {
+        "kind": "timing_dependency",
+        "description": "Both requests' SELECTs must complete before either UPDATE takes the write lock. In production that window is the sub-millisecond gap inside one method call on two threadpool threads; the local reproduction makes it deterministic with a barrier placed before the UPDATE."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Store leaves sqlite3's default transaction mode (store.py:127) and the deployed interpreter is CPython 3.12.14 (Dockerfile:4), for which the documented default (LEGACY_TRANSACTION_CONTROL, isolation_level '') begins implicit transactions only before INSERT/UPDATE/DELETE/REPLACE. Setting isolation_level=None would not help; only a conditional UPDATE or BEGIN IMMEDIATE does."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A party who has obtained a wearer's live enrol code (for example by seeing it in transit or on screen) sends POST /api/v1/enroll with that code at the same instant the legitimate phone does. Both receive 200 and a distinct, non-expiring wearer bearer token; the phone's enrolment does not fail, so no one is prompted to regenerate the code or revoke tokens. The attacker's token grants the wearer's entire phone API: heartbeats that satisfy the dead-man check, alarms that page the contacts, and read/write of the wearer's contacts and tiers.",
+      "payloads": [
+        "POST /api/v1/enroll  Content-Type: application/json  {\"code\": \"<same valid 8-symbol code>\"}  (sent twice, concurrently, from two clients)",
+        "import sqlite3, threading, time\n\n\ndef test_enroll_code_exchanged_twice_when_requests_overlap(appenv, monkeypatch):\n    store = appenv.store\n    store.create_wearer('alice', 'Alice')\n    code_hash = appenv.wearers.hash_token('ABCDEFGH')\n    store.create_enroll_code('alice', code_hash, time.time() + 3600)\n    barrier = threading.Barrier(2, timeout=15)\n\n    class Proxy:  # wraps sqlite3.Connection; parks both callers after their SELECT\n        def __init__(self, conn):\n            object.__setattr__(self, '_c', conn)\n        def __getattr__(self, name):\n            return getattr(self._c, name)\n        def __setattr__(self, name, value):\n            setattr(self._c, name, value)\n        def __enter__(self):\n            self._c.__enter__()\n            return self\n        def __exit__(self, *exc):\n            return self._c.__exit__(*exc)\n        def execute(self, sql, *args):\n            if sql.lstrip().startswith('UPDATE enroll_codes'):\n                barrier.wait()  # both SELECTs have run before either UPDATE\n            return self._c.execute(sql, *args)\n\n    real_connect = sqlite3.connect\n    monkeypatch.setattr(sqlite3, 'connect', lambda *a, **k: Proxy(real_connect(*a, **k)))\n    results = []\n\n    def worker(i):\n        results.append(store.exchange_enroll_code(code_hash, time.time(), 'tok%d' % i))\n\n    threads = [threading.Thread(target=worker, args=(i,)) for i in range(2)]\n    for t in threads:\n        t.start()\n    for t in threads:\n        t.join(60)\n    n = real_connect(store.path).execute(\n        'SELECT COUNT(*) FROM tokens WHERE wearer_id=?', ('alice',)).fetchone()[0]\n    # current source: both calls succeed and two live tokens exist for one code\n    assert results == ['alice', 'alice'] and n == 2\n    # after the fix the expectation becomes: results.count('alice') == 1 and n == 1\n"
+      ],
+      "instructions": [
+        "Save the second payload as server/tests/test_enroll_race.py (it uses only the existing `appenv` fixture from server/tests/conftest.py and the stdlib).",
+        "From server/ run `.venv/Scripts/python.exe -m pytest -q tests/test_enroll_race.py` (JDK/Docker not needed; the local venv is CPython 3.14.3, which has the same default transaction control as the deployed 3.12.14; to match production exactly, run the same test inside the pinned image).",
+        "Observe that the test passes as written: both exchange_enroll_code calls return 'alice' and `SELECT COUNT(*) FROM tokens WHERE wearer_id='alice'` is 2 for one enrol code. Optionally also run the end-to-end variant: issue one code via POST /api/v1/admin/wearers/alice/enroll-code and fire two POST /api/v1/enroll requests with it from two threads through appenv.client; without the barrier this is timing-dependent and may need repetition.",
+        "Apply the remediation below and rerun: exactly one call returns 'alice', the other returns None (410 at the endpoint), and the token count is 1; the existing test_enrollment_flow_and_single_use still passes."
+      ],
+      "observed_result": "Not executed in this run (source-only policy, no sandbox). The source establishes: the SELECT at store.py:205 runs outside any transaction, the UPDATE at 213 cannot fail for a second writer and its rowcount is ignored, and the INSERT at 215 executes unconditionally; with CPython's documented default transaction control and SQLite's busy-handler retry for a deferred transaction whose first statement is a write, the barrier test above yields results == ['alice', 'alice'] and two token rows, i.e. two live wearer tokens issued for one single-use code, each returned with HTTP 200 by wearers.py:170."
+    },
+    "remediation": {
+      "strategy": "Make the burn itself the uniqueness check: update the row only where `used_t IS NULL AND expires_t > ?` and insert the token only when that UPDATE reports exactly one changed row; otherwise return None. A single UPDATE statement is atomic in SQLite, so whichever writer runs first wins and the other sees rowcount 0 regardless of Python's transaction mode. Keep the SELECT for the enabled-wearer join (or fold it into the UPDATE with a subquery). Optionally also start the method with `c.execute('BEGIN IMMEDIATE')` so the read and write happen under one write lock. Add the barrier test above as a regression test expecting one token.",
+      "code_changes": [
+        {
+          "file_name": "server/app/store.py",
+          "fixed_code": "    def exchange_enroll_code(self, code_hash: str, now: float,\n                             new_token_hash: str) -> str | None:\n        \"\"\"Atomically burn the code and mint the token. None if invalid.\"\"\"\n        with self._conn() as c:\n            r = c.execute(\n                \"\"\"SELECT e.wearer_id FROM enroll_codes e JOIN wearers w\n                   ON w.id = e.wearer_id\n                   WHERE e.code_hash=? AND e.used_t IS NULL\n                     AND e.expires_t > ? AND w.enabled=1\"\"\",\n                (code_hash, now)).fetchone()\n            if not r:\n                return None\n            # The burn is the uniqueness check: a single conditional UPDATE is\n            # atomic, so a concurrent exchange of the same code changes 0 rows.\n            burned = c.execute(\n                \"UPDATE enroll_codes SET used_t=? \"\n                \"WHERE code_hash=? AND used_t IS NULL AND expires_t > ?\",\n                (now, code_hash, now)).rowcount\n            if burned != 1:\n                return None\n            c.execute(\"INSERT INTO tokens (token_hash, wearer_id, created_t) \"\n                      \"VALUES (?,?,?)\", (new_token_hash, r[\"wearer_id\"], now))\n            return r[\"wearer_id\"]\n"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires prior possession of a live enrol code (2^40 space, 24 h TTL, delivered out of band) and landing a request inside the sub-millisecond gap between the legitimate phone's SELECT and UPDATE without being able to observe when the phone will enrol; a party holding the code can already obtain a token by using it first. The non-adversarial variant (a phone client retrying the same code within milliseconds) is more plausible than an attack."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "A second never-expiring wearer bearer token is issued at the anonymous boundary to a party other than the phone, without the 410 that would alert the wearer/operator; the token drives a safety function (heartbeats that silence the dead-man check, alarms that page contacts, contact and tier edits for that wearer). The delta over plain code misuse is concealment and persistence: the only remaining signal is a second `enrolled` event with another client address on the wearer page, and recovery is the admin's revoke-all-tokens action. No cross-wearer or operator impact."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "medium",
+      "reason": "Every statement on the path was re-read at the cited lines and the non-atomic check-then-act is unambiguous in source; the two-token outcome additionally relies on two documented library defaults not executed in this run (CPython 3.12/3.14 legacy transaction control issuing BEGIN only before DML, and SQLite's busy-handler retry for a deferred transaction whose first statement is a write). The deterministic barrier test above resolves both in one run from the existing fixtures."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/app/telegram_poll.py:poll_loop:offset-not-advanced-on-per-update-failure",
+    "title": "A single persistently failing Telegram update (e.g. from any user who messages the bot and then blocks it) wedges the acknowledgement poller and silently stops all later Telegram acknowledgements",
+    "description": "poll_loop (server/app/telegram_poll.py:74-123) handles one getUpdates batch inside a single try block and persists the consumed offset (line 119-120) only after every update in the batch has been handled. Two Bot API calls inside the batch have no per-update handler: the onboarding reply sendMessage to whatever chat sent the bot a message (lines 90-96, fed by parse_messages lines 45-61 which accepts any message carrying a chat id) and answerCallbackQuery (lines 103-105). _api (64-68) uses urllib.request.urlopen, which raises urllib.error.HTTPError (a subclass of Exception) for any non-2xx reply; that exception escapes the for-loops to the outer `except Exception` (121-123), which logs a warning and sleeps idle_sleep_s (30 s) without advancing the offset. The next iteration re-reads the unchanged offset (76) and re-fetches the same batch starting at the same update, so the same call fails again. Because the message loop (87-96) runs before the callback loop (97-118), one failing onboarding reply prevents every callback_query in the batch, and every later one Telegram appends to the re-served batch, from reaching on_ack (99, i.e. main.do_ack). Realistic producers: (a) an unauthenticated Telegram user sends the bot any message and blocks the bot; the Bot API is documented to answer 403 'Forbidden: bot was blocked by the user' to sendMessage for as long as the block lasts; (b) a group member posts a message the bot receives (a command or @mention, which Telegram delivers even in privacy mode) in a group where the bot cannot send; (c) benignly, a contact presses the acknowledge button while the poller is down or in its 30 s error sleep, so answerCallbackQuery for the now-expired callback id is answered with 400 on every retry. In case (c) that one ack is still recorded, because on_ack (99) runs before answerCallbackQuery (103) and do_ack is idempotent; what is lost are all subsequent callbacks. While wedged, contacts who press 'I acknowledge' get no confirmation, their ack is never recorded (escalation.py:149 `if not self.any_ack` keeps promoting tiers and repeats continue), and Telegram-only contacts have no fallback because TelegramChannel.deliver (channels.py:54-63) puts only the inline button in the message and discards ack_url. A process restart does not help: the offset is persisted in the kv table. Recovery needs manual action (set kv row tg_poll_offset to the failing update id, or call getUpdates with the bot token and a higher offset) or waiting until the provider drops the unconfirmed update or the blocking user unblocks the bot. The code path is complete and unambiguous in source; what cannot be established from the repository is that the Telegram Bot API answers these conditions with a persistent non-2xx reply and keeps re-serving the unconfirmed update at the head of the batch, so the candidate stays needs_validation rather than confirmed under this run's source-only policy.",
+    "claimed_root_cause": "Batch-level error handling with the offset committed only after the whole batch: a Bot API failure in the un-guarded sendMessage onboarding reply (telegram_poll.py:90-96) or answerCallbackQuery (103-105) propagates through _api (67) to the outer except (121-123) before new_offset/kv_set (119-120) run, so the consumer never advances past the failing update and re-processes the same batch from the same offset on every cycle, and no later callback_query is handed to on_ack (99).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/telegram_poll.py",
+        "line": 77,
+        "scope": "poll_loop getUpdates fetch",
+        "description": "getUpdates is called with offset = (stored kv tg_poll_offset or 0) + 1 and allowed_updates message+callback_query; the returned batch contains plain message updates from any Telegram user or group that messaged the bot (parse_messages, 45-61, accepts any message with a chat id) plus any callback_query updates."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/telegram_poll.py",
+        "line": 90,
+        "scope": "poll_loop onboarding reply loop",
+        "description": "For every parsed message the loop awaits _api('sendMessage') to the sender's chat id with no try/except (90-96). A chat that has blocked the bot or in which the bot cannot post makes the Bot API return a non-2xx reply."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/telegram_poll.py",
+        "line": 67,
+        "scope": "_api",
+        "description": "urllib.request.urlopen raises urllib.error.HTTPError on a non-2xx reply; the exception propagates out of asyncio.to_thread into poll_loop. The same applies to the un-guarded answerCallbackQuery at 103-105 (only editMessageText at 111-118 is wrapped)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/telegram_poll.py",
+        "line": 121,
+        "scope": "poll_loop outer except",
+        "description": "The exception is caught at batch level ('telegram poll cycle failed'), the loop sleeps idle_sleep_s (default 30 s); lines 119-120 (new_offset = max(update_id); store.kv_set(OFFSET_KEY)) were never reached, so the stored offset is unchanged and line 76 reads the same value next cycle."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/telegram_poll.py",
+        "line": 99,
+        "scope": "poll_loop ack dispatch",
+        "description": "On every later cycle the same batch is re-fetched from the same offset and fails at the same update before (or during) the callback loop, so on_ack (main.do_ack) is never called for any later callback_query; Telegram acknowledgements are lost for as long as the failing update is re-served, and escalation.py:149 keeps promoting tiers as if nobody responded."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 119,
+        "description": "new_offset = max(update_id) and kv_set(OFFSET_KEY) at 119-120 run only after the entire message loop (87-96) and callback loop (97-118) completed without an exception; there is no per-update commit."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 90,
+        "description": "sendMessage onboarding reply (90-96) is awaited with no exception handling and runs before the callback loop, so a failing reply blocks every callback in the batch."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 103,
+        "description": "answerCallbackQuery (103-105) is awaited with no exception handling; on_ack at 99 is guarded (98-102) and runs first, so a stale callback id fails the cycle after its own ack was recorded, and blocks the callbacks that follow it."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 111,
+        "description": "editMessageText is the only Bot API call in the loop wrapped in try/except (111-118), showing per-call failure handling was considered but not applied to the other two calls."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 67,
+        "description": "_api uses urllib.request.urlopen without catching HTTPError, so any 4xx Bot API reply surfaces as an exception, not a return value."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 121,
+        "description": "Outer `except Exception` logs a warning and sleeps idle_sleep_s; nothing skips, records or acknowledges the failing update, and nothing supervises or restarts the loop differently."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 56,
+        "description": "parse_messages accepts every message that carries a chat id, including negative (group/supergroup) ids, so any chat the bot receives a message from becomes a sendMessage target."
+      },
+      {
+        "file": "server/app/telegram_poll.py",
+        "line": 7,
+        "description": "Module docstring states the intended invariant: the persisted offset means restarts 'neither replay nor drop updates'."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 57,
+        "description": "TelegramChannel.deliver attaches only the inline callback button (57-60) and ignores ack_url, so Telegram-only contacts have no other way to acknowledge while the poller is wedged."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 557,
+        "description": "poll_loop is started once per process with asyncio.create_task(telegram_poll.poll_loop(bot, db, do_ack)) and is the only consumer of Telegram callbacks; no other code writes tg_poll_offset (store.py:566 kv_set is only called from telegram_poll.py:120)."
+      },
+      {
+        "file": "server/app/escalation.py",
+        "line": 149,
+        "description": "Tier promotion depends on any_ack(); an ack lost in the wedged poller leaves the escalation un-acked, so promotion and repeats continue."
+      },
+      {
+        "file": "server/tests/test_telegram_poll.py",
+        "line": 45,
+        "description": "The only loop test (test_poll_records_ack_and_advances_offset) uses a fake _api that never fails and gives the exact monkeypatch seam (telegram_poll._api) for the local validation; no test covers a per-update Bot API failure."
+      }
+    ],
+    "blockers": [
+      "No target code may execute in this run (no OS-enforced sandbox on this host), so the re-fetch-and-fail-again behaviour was established from source only and not observed locally.",
+      "Third-party provider fact: that the Telegram Bot API returns a persistent non-2xx reply (403 'Forbidden: bot was blocked by the user') to sendMessage for a user who messaged the bot and then blocked it, a 4xx for a group the bot cannot post in, and 400 for answerCallbackQuery on an expired callback id, is documented provider behaviour outside the repository and cannot be verified from source.",
+      "Third-party provider fact: that Telegram keeps re-serving an unconfirmed update at the head of every getUpdates batch for the same offset (documented as about 24 h of retention) is provider behaviour outside the repository; it bounds the duration of the outage and the chance that a callback pressed during a 30 s error sleep is already expired."
+    ],
+    "validation_plan": {
+      "local": "Add to server/tests/test_telegram_poll.py a copy of test_poll_records_ack_and_advances_offset in which fake_api (a) returns on the first and second getUpdates call {'result': [{'update_id': 41, 'message': {'text': 'hi', 'chat': {'id': 7}, 'from': {'first_name': 'x'}}}, {'update_id': 42, 'callback_query': {'id': 'cb9', 'data': 'ack:rawtok'}}]}, (b) raises urllib.error.HTTPError('https://api.telegram.org/botBOT/sendMessage', 403, 'Forbidden', {}, None) on every sendMessage call, and (c) raises asyncio.CancelledError on the third getUpdates call; run poll_loop('BOT', appenv.store, on_ack, idle_sleep_s=0) exactly as the existing test does, with the command `cd server && .venv/Scripts/python.exe -m pytest -q tests/test_telegram_poll.py`. Expected on current code: acked == [] (the callback behind the poisoned message is never handed to on_ack), every recorded getUpdates call has params['offset'] == 1, no answerCallbackQuery call was made, and appenv.store.kv_get(telegram_poll.OFFSET_KEY) is None. A fix that handles each update's Bot API failure individually (log and continue) and commits the offset per update or per batch regardless should make the same test see acked == ['rawtok'] and kv offset '42'.",
+      "deployment": "Owner-observed only, on the owner's own instance and own bot: from a throwaway Telegram account send the bot any message and immediately block the bot. Watch the server log (`docker compose logs -f monitor` in the compose directory) for a 'telegram poll cycle failed: HTTP Error 403: Forbidden' line repeating about every 30 s with no further 'telegram onboarding message' or ack activity; then have a trusted contact press an existing 'I acknowledge' button on a test escalation and confirm that no ACKNOWLEDGED edit appears on the message and no 'ack' event is recorded for that escalation on the dashboard. Recover by unblocking the bot from the throwaway account, or by setting the kv row tg_poll_offset (sqlite3 on data/cryomonitor.db) to the failing update id shown by calling getUpdates once with the bot token, then restarting the monitor container."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "server/app/ui.py:op_create:username-unroutable",
+    "title": "An operator whose username contains '/' can log in as admin but cannot be disabled, demoted or password-reset by any route",
+    "description": "op_create (server/app/ui.py:480-497) accepts any non-empty stripped username and stores it verbatim; bootstrap_admin (server/app/operators.py:71) applies no rule either. Every operator-management action is addressed only by a single URL path segment: POST /ui/operators/{username}/role, /password, /disable, /enable (ui.py:500, 516, 531, 544), and operators.html (lines 14, 23, 29) builds those action URLs by Jinja HTML-escaping, not URL-encoding, the name. Starlette compiles {username} with the str convertor regex \"[^/]+\" and anchors the pattern with \"$\" (routing.py:137,159; convertors.py:21), and it matches against scope[\"path\"] (_utils.py:97), which uvicorn (h11_impl.py:202; httptools_impl.py:259-260) and the TestClient (testclient.py:281) percent-decode before routing. So for a username such as 'ops/x' the generated form posts to /ui/operators/ops/x/disable and the hand-encoded /ui/operators/ops%2Fx/disable decodes to the same path; neither matches any route (404), and the same holds for /role and /password. The admin API (wearers.py:180-242) has no operator routes and there is no delete route, CLI or other management surface, so the account is beyond the application's revocation authority while login (operators.py:92-109) and lookup_session (store.py:406-415) accept it normally, including with role admin. The hunter's wider claim about '?', '#' and a literal '%2F' is corrected: those names also break the template-generated forms (query/fragment delimiters; '%2F' decodes to '/'), but a hand-encoded request (%3F, %23, %252F) does reach the routes because the decoded character is admitted by [^/]+; only '/' is unroutable. Consequence: an attacker who briefly holds an admin session (stolen cookie, unattended browser) can create an admin account that the owner cannot disable, demote or reset from the dashboard, keeping full admin authority over wearer contacts, diagnostics bundles, escalations and enrol codes until the owner edits the SQLite file on the data volume by hand; a mistyped name (or a CM_UI_ADMIN_USER containing '/') is stuck the same way.",
+    "root_cause": "server/app/ui.py:488 validates the username only for non-emptiness (and operators.py:71 not at all), while every management route and the operators template address operators as a single, un-encoded URL path segment matched by Starlette's [^/]+ convertor; a '/' in the name therefore escapes the admin's revocation routes with no alternative management surface.",
+    "intended_behavior": "Every operator account an admin (or the env bootstrap) creates can later be disabled, demoted or password-reset by an admin through the dashboard (coverage invariant); a username that cannot be addressed by the management routes must be refused at creation.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/ui.py",
+        "line": 485,
+        "scope": "op_create",
+        "description": "username = str(form.get(\"username\", \"\")).strip() from the admin's create form; line 488 only requires it to be non-empty (plus password length and role)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/ui.py",
+        "line": 494,
+        "scope": "op_create",
+        "description": "db.create_operator(username, hash, role) stores the name verbatim (server/app/store.py:364-367, TEXT PRIMARY KEY); role may be 'admin'."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/operators.py",
+        "line": 95,
+        "scope": "login",
+        "description": "login looks the username up verbatim with db.get_operator and issues a normal session and CSRF token; lookup_session (store.py:406-415) returns role 'admin' on every request."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/templates/operators.html",
+        "line": 29,
+        "scope": "operators table",
+        "description": "action=\"/ui/operators/{{ o.username }}/{{ 'disable' if o.enabled else 'enable' }}\" (also /role at line 14 and /password at line 23): HTML-escaped, not URL-encoded, so a '/' in the name becomes an extra path segment."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/ui.py",
+        "line": 531,
+        "scope": "op_disable",
+        "description": "@router.post(\"/operators/{username}/disable\") (role at 500, password at 516, enable at 544) is compiled to ^/ui/operators/(?P<username>[^/]+)/disable$ and can never match a decoded path containing a '/' inside the name; no other route, API (wearers.py:180-242) or tool manages operators, so the account stays enabled with its role and password."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/ui.py",
+        "line": 488,
+        "description": "if not username or len(password) < 8 or role not in (\"admin\", \"responder\"): the only username rule is non-emptiness."
+      },
+      {
+        "file": "server/app/operators.py",
+        "line": 71,
+        "description": "bootstrap_admin creates the env admin with db.create_operator(user, ...) and no username rule either."
+      },
+      {
+        "file": "server/app/templates/operators.html",
+        "line": 14,
+        "description": "action=\"/ui/operators/{{ o.username }}/role\": autoescaped HTML, no urlencode filter."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 28,
+        "description": "router = APIRouter(prefix=\"/ui\"); included at server/app/main.py:73; no operator delete route exists."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 180,
+        "description": "Admin API routes (180-242) cover wearers only; there is no second door for operator revocation."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/starlette/convertors.py",
+        "line": 21,
+        "description": "StringConvertor.regex = \"[^/]+\" in the installed Starlette 1.3.1 (requirements pin 1.6.0; the str convertor is the documented 'no path separators' contract)."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/starlette/routing.py",
+        "line": 137,
+        "description": "compile_path inserts (?P<username>[^/]+) and anchors with \"$\" at line 159; Route.matches (line 241-242) tests get_route_path(scope), i.e. scope[\"path\"] (_utils.py:97)."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/uvicorn/protocols/http/h11_impl.py",
+        "line": 202,
+        "description": "path = unquote(raw_path.decode(\"ascii\")) before the ASGI scope is built; httptools_impl.py:259-260 does the same when '%' is present, so %2F becomes '/' before routing under either parser."
+      },
+      {
+        "file": "server/.venv/Lib/site-packages/starlette/testclient.py",
+        "line": 281,
+        "description": "The http TestClient scope sets \"path\": unquote(path), so the pytest fixtures reproduce the same decoding."
+      },
+      {
+        "file": "server/tests/conftest.py",
+        "line": 94,
+        "description": "ui_login(client, username, password) logs the TestClient in and returns the CSRF token; appenv_ui (line 85) boots a fresh app with admin UI_ADMIN = (\"adminui\", \"s3cretpass!\")."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "Creating the account needs an admin dashboard session (an attacker who holds one transiently, or a legitimate admin making a typo); the finding is about revocation failing afterwards, not initial access."
+      },
+      {
+        "kind": "data_state",
+        "description": "An operators row whose username contains '/' (via op_create or CM_UI_ADMIN_USER at bootstrap); the generated forms for '?', '#' or '%2F' names also break but those rows remain reachable with a hand-encoded URL."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A holder of an admin session (stolen cm_session cookie or an unattended admin browser) creates a second admin named 'ops/x'; after the owner regains control, no dashboard action can disable, demote or reset that account.",
+      "payloads": [
+        "username=ops/x&password=longenough1&role=admin&csrf=<csrf>",
+        "POST /ui/operators/ops/x/disable",
+        "POST /ui/operators/ops%2Fx/disable"
+      ],
+      "instructions": [
+        "Add to server/tests/test_dashboard.py (uses the existing appenv_ui fixture and ui_login helper from server/tests/conftest.py): def test_slash_username_is_unmanageable(appenv_ui): c = appenv_ui.client; csrf = ui_login(c)",
+        "r = c.post('/ui/operators/create', data={'username': 'ops/x', 'password': 'longenough1', 'role': 'admin', 'csrf': csrf}, follow_redirects=False); assert r.status_code == 303 (account created)",
+        "for path in ('/ui/operators/ops/x/disable', '/ui/operators/ops%2Fx/disable', '/ui/operators/ops/x/password', '/ui/operators/ops/x/role'): r = c.post(path, data={'csrf': csrf, 'password': 'newpassword9', 'role': 'responder'}, follow_redirects=False); assert r.status_code == 404 (no route matches; compare /ui/operators/resp/disable which returns 303 in test_disabled_operator_and_password_reset_kill_sessions)",
+        "csrf2 = ui_login(c, 'ops/x', 'longenough1'); assert c.get('/ui/operators').status_code == 200 (the account logs in and holds the admin role)",
+        "Run: cd server && .venv/Scripts/python.exe -m pytest -q tests/test_dashboard.py -k slash_username"
+      ],
+      "observed_result": "Not executed in this run (source-only policy, no sandbox). The source establishes: create returns 303 and inserts the row; every management POST for the name, whether the template's /ui/operators/ops/x/... form target or the hand-encoded ops%2Fx, is decoded to a path with an extra segment that matches no compiled route and returns FastAPI's default 404; login as 'ops/x' returns 303 with a session whose lookup_session role is 'admin'. If the fixed build is in place, the create instead returns 200 with the 'username, role, and a password...' error page and the row is absent."
+    },
+    "remediation": {
+      "strategy": "Enforce the invariant at creation: accept only a routable username alphabet in op_create and bootstrap_admin (mirror the wearer-id rule at wearers.py:183), so no row can exist that the management routes cannot address. Defensively also URL-encode the name in operators.html (`{{ o.username | urlencode }}`) and, at startup, log or refuse any existing operators row whose name fails the rule; the deployment check below finds existing rows.",
+      "code_changes": [
+        {
+          "file_name": "server/app/ui.py",
+          "fixed_code": "import re\n\n_USERNAME_RE = re.compile(r\"[A-Za-z0-9][A-Za-z0-9._-]{0,31}\")\n\n@router.post(\"/operators/create\")\nasync def op_create(request: Request):\n    op = ops.require_ui_admin(request)\n    await ops.verify_csrf(request, op)\n    form = await request.form()\n    username = str(form.get(\"username\", \"\")).strip()\n    password = str(form.get(\"password\", \"\"))\n    role = str(form.get(\"role\", \"responder\"))\n    if (not _USERNAME_RE.fullmatch(username) or len(password) < 8\n            or role not in (\"admin\", \"responder\")):\n        return operators_page(request,\n                              error=\"username (letters, digits, . _ -, max 32), \"\n                                    \"role, and a password of at least 8 \"\n                                    \"characters are required\")\n    ..."
+        },
+        {
+          "file_name": "server/app/templates/operators.html",
+          "fixed_code": "<form class=\"inline\" method=\"post\" action=\"/ui/operators/{{ o.username | urlencode }}/role\">\n...\n<form class=\"inline\" method=\"post\" action=\"/ui/operators/{{ o.username | urlencode }}/password\">\n...\n<form class=\"inline\" method=\"post\" action=\"/ui/operators/{{ o.username | urlencode }}/{{ 'disable' if o.enabled else 'enable' }}\">"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires an admin session already in the attacker's hands (or an admin's own typo); the vulnerability only extends an existing compromise into persistence and leaves an operator_created audit event naming the account."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "An admin account the application cannot disable, demote or password-reset keeps full dashboard authority (wearer contacts and addresses, diagnostics bundles, escalation acks, enrol codes, further operators) until the owner edits the SQLite file by hand on the production data volume; recovery exists but is outside the product."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "medium",
+      "reason": "The complete path is read from the repository and the installed framework sources (route compilation, str convertor, pre-routing percent-decoding in both uvicorn parsers and the TestClient) and no alternative management surface exists; not executed in this run, and the pinned Starlette 1.6.0 was not inspected locally, though the str convertor's no-separator contract is stable documented behaviour."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/app/wearers.py:require_admin:cookie-path-no-csrf",
+    "title": "Cookie-authenticated /api/v1/admin/* mutations have no CSRF check; protection rests on SameSite=Lax alone",
+    "description": "require_admin (server/app/wearers.py:81-93) accepts the operator session cookie cm_session as full admin authority for the admin API: when a Request is passed it calls current_operator(request), which reads only the ambient cookie, and returns Auth(role='admin') for an admin session without calling verify_csrf and without any Origin or Referer comparison (a grep of server/app finds no Origin/Referer handling anywhere; the only CSRF check is operators.py:145-152, called from ui.py routes only). The four admin routes that take no body — POST /api/v1/admin/wearers/{wid}/disable (wearers.py:200-208), /enable (211-219), /enroll-code (222-233) and /revoke-tokens (236-242) — therefore accept a plain HTML form POST that carries only the cookie; the JSON-body route POST /api/v1/admin/wearers is not reachable by a form (pydantic rejects a form content type). The cookie is set with samesite='lax', httponly, path='/' (ui.py:154-156), so a browser withholds it on POSTs from a different site; the explicit Lax attribute also excludes the 'Lax+POST' grace that applies only to cookies with no attribute. The weakness is therefore exploitable only from an origin that is same-site with the dashboard (same scheme and registrable domain; port ignored) and that serves HTML a non-operator can author, or from same-origin markup injection. The hunter's suggested same-origin vector (the hand-built ack page, main.py:328-336) does not qualify: the token is echoed into the page only when it hashes to a stored ack token (main.py:327, 333), so an attacker cannot place markup there. Candidate same-site origins are deployment facts: the base compose publishes the bundled ntfy on host port 8090 (docker-compose.yml:77-78) next to the dashboard, which is same-site when operators use the dashboard over plain http on the same LAN host name (CM_UI_INSECURE_COOKIES=1 mode, operators.py:155-158); the VPS overlay serves ntfy at CM_NTFY_DOMAIN behind the same Caddy (Caddyfile:16-18, docker-compose.vps.yml:25-30), same-site if it is a subdomain of CM_DOMAIN; a DDNS suffix on the Public Suffix List (the docs' example is a synology.me name, docs/DEPLOY-SYNOLOGY.md:110) would make sibling DDNS names cross-site. The shipped ntfy runs `serve` with no attachment-cache-dir, so attachment hosting is off unless the owner configured it. If such an origin exists, a logged-in admin visiting it can be made to disable a wearer (wearer_for_token then returns None, store.py:183-191, so the phone's heartbeats and alarms get 401, and pump_cycle skips the wearer's dead-man check, main.py:442-444: the safety monitor is silently off for that wearer), re-enable a disabled wearer, or revoke a wearer's tokens; a minted enrol code is returned only in the response body the attacking page cannot read. The event written is unattributed (wearers.py:207 writes {} where the UI path writes the operator name, ui.py:455).",
+    "claimed_root_cause": "wearers.py:85-90 returns Auth(role='admin') from the ambient cm_session cookie without the per-session CSRF verification (operators.py:145-152) that every /ui/* mutation applies and without an Origin/Referer binding, leaving a parallel cookie-authenticated path to the same state changes whose only protection is the browser's SameSite=Lax policy.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/wearers.py",
+        "line": 200,
+        "scope": "disable_wearer",
+        "description": "POST /api/v1/admin/wearers/{wearer_id}/disable declares no body model; the handler takes only the path parameter, the Request and an optional Authorization header, so a browser form POST with no body and any content type is a valid request shape."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/wearers.py",
+        "line": 203,
+        "scope": "disable_wearer",
+        "description": "Calls require_admin(authorization, request) with authorization=None for a browser-originated request."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/wearers.py",
+        "line": 87,
+        "scope": "require_admin",
+        "description": "current_operator(request) resolves the cm_session cookie; an admin role returns Auth(role='admin') at line 90 without verify_csrf and without any Origin or Referer check."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/operators.py",
+        "line": 119,
+        "scope": "current_operator",
+        "description": "Identity comes solely from the ambient cookie (request.cookies.get('cm_session')) looked up via lookup_session; nothing request-specific beyond the cookie is required."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/wearers.py",
+        "line": 206,
+        "scope": "disable_wearer",
+        "description": "db.set_wearer_enabled(wearer_id, False) disables the wearer on the attacker's behalf; line 207 writes a wearer_disabled event with empty data, so the audit trail does not name the operator whose session was used."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/app/ui.py",
+        "line": 265,
+        "description": "UI mutations call await ops.verify_csrf(request, op) after authentication (20 handlers, lines 265-547); require_admin on the admin API path does not."
+      },
+      {
+        "file": "server/app/ui.py",
+        "line": 155,
+        "description": "Session cookie set with samesite='lax', httponly=True, secure unless CM_UI_INSECURE_COOKIES=1, path='/': the sole control against a foreign page using the cookie, effective across sites but not across same-site origins."
+      },
+      {
+        "file": "server/app/operators.py",
+        "line": 145,
+        "description": "verify_csrf compares the X-CSRF header or csrf form field with the session token; it is the only CSRF control in server/app and is referenced only from ui.py."
+      },
+      {
+        "file": "server/app/store.py",
+        "line": 189,
+        "description": "wearer_for_token requires w.enabled=1, so disabling a wearer makes the phone's bearer token fail (401) until re-enabled."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 443,
+        "description": "pump_cycle skips disabled wearers, so the dead-man check stops for a wearer disabled this way."
+      },
+      {
+        "file": "server/tests/test_dashboard.py",
+        "line": 239,
+        "description": "test_operator_session_administrates_the_api shows the cookie alone authenticates GET /api/v1/admin/wearers; no test exercises a cookie-only POST without a CSRF token."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 78,
+        "description": "Base compose publishes the bundled ntfy on host port 8090 on all interfaces: a second origin on the dashboard's host, same-site with a plain-http dashboard on that host."
+      },
+      {
+        "file": "server/Caddyfile",
+        "line": 16,
+        "description": "VPS overlay serves ntfy at CM_NTFY_DOMAIN behind the same Caddy; if it is a subdomain of CM_DOMAIN the two origins are same-site for cookie purposes."
+      },
+      {
+        "file": "server/app/main.py",
+        "line": 327,
+        "description": "The ack page echoes the path token only when lookup_ack_token finds it, so it is not a same-origin markup-injection vector for this candidate."
+      }
+    ],
+    "blockers": [
+      "Whether an origin same-site with the URL operators actually use for the dashboard exists and serves HTML that a non-operator can author (plain-http dashboard and ntfy on the same LAN host name, CM_NTFY_DOMAIN relative to CM_DOMAIN on the VPS, DDNS suffix on the Public Suffix List or not, other DSM applications, ntfy attachment-cache-dir configured and /file/<id> served inline) is a deployment fact not visible in source; without it the browser's SameSite=Lax policy blocks the request and there is no lower-trust path.",
+      "The server-side acceptance of a cookie-only, token-less POST to /api/v1/admin/wearers/{wid}/disable is established by source but was not observed: this run permits no execution of target code, so the local TestClient check below has not been run."
+    ],
+    "validation_plan": {
+      "local": "Add to server/tests/test_dashboard.py and run with `cd server && .venv/Scripts/python.exe -m pytest -q -k cookie_only`: def test_admin_api_accepts_cookie_only_post(appenv_ui): ui_login(appenv_ui.client); r = appenv_ui.client.post('/api/v1/admin/wearers/default/disable', headers={'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'http://evil.localhost'}, content=b''); assert r.status_code == 200; assert appenv_ui.store.get_wearer('default')['enabled'] == 0; hb = appenv_ui.client.post('/api/v1/heartbeat', json={}, headers=wearer_headers()); assert hb.status_code == 401. Expected on the current source: all assertions pass (TestClient attaches the cookie regardless of SameSite, so this proves only the missing server-side check, not the browser policy). After the fix the first assert should see 403.",
+      "deployment": "The owner (no audit traffic is sent) lists, for the deployment they operate, the exact URL operators log in at (scheme, host, port) and every other origin sharing its scheme and registrable domain: the ntfy published on port 8090 of the NAS or at CM_NTFY_DOMAIN, DSM packages on the same host name, and whether the DDNS suffix is on the Public Suffix List; for each, whether it serves HTML a non-operator can author (for ntfy: whether attachment-cache-dir is set and attachments are served inline). If any such origin exists, treat the candidate as exploitable. In all cases the source fix is independent of the answer: in require_admin, when authority comes from the session cookie, require the per-session CSRF token (await verify_csrf, or an X-CSRF header check for the API) or refuse cookie authentication for non-GET admin API routes, and write the operator name into the admin-API audit events."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/docker-compose.yml:FORWARDED_ALLOW_IPS-default:proxy-identity-collapse",
+    "title": "Base compose trusts only 127.0.0.1 for X-Forwarded-For, which a bridge-networked container never sees from DSM's reverse proxy; unless the NAS .env overrides CM_FORWARDED_ALLOW_IPS, all internet callers share one login and one enrol rate-limit bucket and the audit records the proxy",
+    "description": "uvicorn installs ProxyHeadersMiddleware by default and reads the trusted-proxy list from the FORWARDED_ALLOW_IPS environment variable, defaulting to 127.0.0.1 (uvicorn 0.52.x config.py: os.environ.get(\"FORWARDED_ALLOW_IPS\", \"127.0.0.1\")); the image CMD passes no --forwarded-allow-ips flag (server/Dockerfile:34) and the base compose sets FORWARDED_ALLOW_IPS to ${CM_FORWARDED_ALLOW_IPS:-127.0.0.1} (server/docker-compose.yml:56). For a peer not in that list the middleware leaves scope[\"client\"] as the raw TCP peer (uvicorn proxy_headers.py: X-Forwarded-For is only read when client_host in trusted_hosts). The documented NAS topology (docs/DEPLOY-SYNOLOGY.md:82-85) has DSM's proxy connect to localhost:8081, the published host port of a compose service on the default bridge network; inside the container's own network namespace that connection arrives from a host address on the bridge (the owner's own record at openspec/changes/archive/2026-09-17-vps-deployment-kit/proposal.md:13-14 says the NAS logs showed 172.23.0.1 on every request), never from 127.0.0.1. So with the default, request.client.host is the same gateway address for every internet caller. Login keys its per-address throttle on a:{client} (server/app/operators.py:85-89; client comes from request.client.host at server/app/ui.py:144) and records a failure for any username (operators.py:98-100), so five failed POST /ui/login from anywhere, no valid username needed, make check_rate_limit raise 429 for every subsequent login attempt by any operator for 15 minutes; refused attempts are not recorded (the raise precedes record_login_attempt), so keeping the lock costs about one failed request per 15 minutes. Enrolment keys its in-memory 10-per-hour throttle on the same address (server/app/wearers.py:135-140,158-160) and counts every request before validating the code, so the eleventh and later POST /api/v1/enroll in any sliding hour, including legitimate ones, return 429. The login_failed/login/enrolled audit events store the collapsed client (operators.py:101-102,108; wearers.py:169), so attribution of an attack is lost. Scope of the availability effect: new dashboard logins and new phone enrolments only; operators with a live cm_session cookie (7-day TTL) keep working, and acknowledge paths (Telegram, ntfy, email ack tokens) and the phone API are unaffected. The repository's own tests show the mechanism (server/tests/test_proxy_headers.py:29-36) and the archived change left the NAS step 'set CM_FORWARDED_ALLOW_IPS to the bridge gateway' unchecked and marked optional (tasks.md:14-18), while openspec/specs/server-deployment/spec.md:8-16 requires per-client identity behind a proxy. Whether the production NAS .env overrides the default today is the decisive fact and is not readable in this audit.",
+    "claimed_root_cause": "The base compose ships a trusted-proxy default (127.0.0.1) that a bridge-networked container can never match for a host-side reverse proxy, the documented NAS deployment relies on an optional manual .env override to correct it, and the application's only brute-force defences and audit attribution key solely on request.client.host with no fallback that stays per-caller or fails safe when that identity collapses to one value.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/app/ui.py",
+        "line": 144,
+        "scope": "login_post",
+        "description": "Anonymous POST /ui/login; client = request.client.host, the address uvicorn derived, which is the raw TCP peer unless the peer is in FORWARDED_ALLOW_IPS and sent X-Forwarded-For."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/Dockerfile",
+        "line": 34,
+        "scope": "CMD uvicorn app.main:app --host 0.0.0.0 --port 8080",
+        "description": "No --forwarded-allow-ips or --proxy-headers flags: uvicorn reads FORWARDED_ALLOW_IPS from the environment, default 127.0.0.1."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/docker-compose.yml",
+        "line": 56,
+        "scope": "services.monitor.environment.FORWARDED_ALLOW_IPS",
+        "description": "${CM_FORWARDED_ALLOW_IPS:-127.0.0.1}: DSM's proxy reaches the published port from the host side of the docker bridge (recorded as 172.23.0.1), so unless the .env override is set X-Forwarded-For is ignored and every caller is the gateway address."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/operators.py",
+        "line": 88,
+        "scope": "check_rate_limit a:{client}",
+        "description": "The per-address failure counter (recorded for any username at lines 98-100) is shared by all callers; five failures from one attacker fill it."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/operators.py",
+        "line": 89,
+        "scope": "HTTPException(429)",
+        "description": "Every subsequent login by any operator is refused while five recorded failures lie within the 900 s window; the same collapse applies to the enrol throttle at server/app/wearers.py:159-160."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/docker-compose.yml",
+        "line": 51,
+        "description": "Compose comment acknowledges that without naming the proxy every caller shares the proxy's address and ONE rate-limit bucket (login, enrollment) and the audit trail records the proxy; the fix is left to manual configuration."
+      },
+      {
+        "file": "server/.env.example",
+        "line": 71,
+        "description": "CM_FORWARDED_ALLOW_IPS documented for non-VPS setups (Synology DSM proxy: the docker bridge gateway, e.g. 172.23.0.1) and shipped empty (line 74)."
+      },
+      {
+        "file": "docs/DEPLOY-SYNOLOGY.md",
+        "line": 85,
+        "description": "NAS reverse-proxy destination is HTTP localhost port 8081, the published host port of the bridge-networked monitor service."
+      },
+      {
+        "file": "docs/DEPLOY-SYNOLOGY.md",
+        "line": 223,
+        "description": "NAS guide instructs setting CM_FORWARDED_ALLOW_IPS by hand to the bridge gateway seen in the container log; whether this was done on the production NAS is not source-visible."
+      },
+      {
+        "file": "openspec/changes/archive/2026-09-17-vps-deployment-kit/proposal.md",
+        "line": 13,
+        "description": "Owner's recorded observation: behind DSM the NAS logs showed 172.23.0.1 on every request, so all clients shared one bucket; confirms the proxy presents the bridge gateway, not 127.0.0.1."
+      },
+      {
+        "file": "openspec/changes/archive/2026-09-17-vps-deployment-kit/tasks.md",
+        "line": 16,
+        "description": "Task 7 (unchecked, 'Optional for the NAS'): set CM_FORWARDED_ALLOW_IPS to the bridge gateway and confirm the audit shows real client addresses; the repository records no completion of this step."
+      },
+      {
+        "file": "openspec/specs/server-deployment/spec.md",
+        "line": 9,
+        "description": "Requirement: behind a reverse proxy the login and enrolment throttles and audit events SHALL use the real client address; the base default cannot satisfy this for the documented NAS topology without the override."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 158,
+        "description": "enroll() keys its 10/hour in-memory limiter on request.client.host; _rate_limited (135-140) appends every request before the comparison, so refused requests also count."
+      },
+      {
+        "file": "server/app/operators.py",
+        "line": 101,
+        "description": "login_failed audit event stores the collapsed client, so attribution records the proxy address."
+      },
+      {
+        "file": "server/tests/test_proxy_headers.py",
+        "line": 36,
+        "description": "Existing test asserts that through an untrusted peer ten well-formed bad enrol codes with distinct X-Forwarded-For values make a further X-Forwarded-For get 429: the shared-bucket mechanism."
+      },
+      {
+        "file": "server/requirements.txt",
+        "line": 447,
+        "description": "uvicorn pinned at 0.52.3; its Config reads FORWARDED_ALLOW_IPS with default '127.0.0.1' and wraps the app in ProxyHeadersMiddleware (read from the installed 0.52.1 source under server/.venv; same logic)."
+      }
+    ],
+    "blockers": [
+      "The production NAS .env value of CM_FORWARDED_ALLOW_IPS is not readable in this audit (.env is excluded). If it names the current bridge gateway, per-client buckets are restored and the candidate is refuted for that host; the repository's last record (archived task 7, unchecked and optional) suggests it was not set as of 2026-09-17.",
+      "That the NAS still runs the documented topology (base compose with a local host-port change, monitor on the default bridge network without network_mode: host, DSM reverse proxy to localhost:8081) is a runtime fact the owner must observe; the gateway address can also drift when the compose network is recreated, silently reverting a once-correct override to the collapsed state."
+    ],
+    "validation_plan": {
+      "local": "Add to server/tests/test_proxy_headers.py, using the existing appenv_ui fixture and UI_ADMIN from tests/conftest.py: client = TestClient(ProxyHeadersMiddleware(appenv_ui.main.app, trusted_hosts=\"10.0.0.1\")) (a list the TestClient peer 'testclient' never matches, mirroring the NAS default); for i in range(appenv_ui.operators.LOGIN_MAX_ATTEMPTS): client.post(\"/ui/login\", data={\"username\": \"nobody\", \"password\": \"x\"}, headers={\"X-Forwarded-For\": f\"203.0.113.{i}\"}) and assert each returns 401; then r = client.post(\"/ui/login\", data={\"username\": UI_ADMIN[0], \"password\": UI_ADMIN[1]}, headers={\"X-Forwarded-For\": \"198.51.100.9\"}, follow_redirects=False) and assert r.status_code == 429. Control case: repeat with trusted_hosts=\"*\" and assert the final correct login returns 303. Run with `cd server && .venv/Scripts/python.exe -m pytest -q tests/test_proxy_headers.py` (not executed in this run: no sandbox).",
+      "deployment": "Owner, on the NAS over SSH, read-only: `docker compose exec monitor printenv FORWARDED_ALLOW_IPS` (127.0.0.1 means the default is live) and `docker network inspect <project>_default --format '{{(index .IPAM.Config 0).Gateway}}'` to compare with the configured value (a mismatch means drift). Then open the dashboard Audit page as admin and read the client field of existing login, login_failed and enrolled events: if every entry from different people/devices shows the same 172.x gateway address, the identity collapse is live and CM_FORWARDED_ALLOW_IPS must be set per docs/DEPLOY-SYNOLOGY.md:223-229 (and port 8081 bound to 127.0.0.1 on the NAS); distinct real client addresses refute the candidate for this host. No audit traffic is to be sent to the deployment."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "server/docker-compose.yml:ntfy-ports:all-interfaces-unauthenticated",
+    "title": "Base compose (the NAS production file) publishes the unauthenticated, plaintext ntfy server and the plaintext app port on every host interface",
+    "description": "server/docker-compose.yml is the file the NAS production consumes ('Use existing docker-compose.yml', docs/DEPLOY-SYNOLOGY.md:58). It publishes ntfy as \"8090:80\" (line 78) and the app as \"8080:8080\" (line 19) with no host_ip, which Docker renders as 0.0.0.0, and the ntfy service (lines 71-80) carries no auth configuration (no auth-file / auth-default-access, no NTFY_* env, no server.yml mount), so the pinned image's documented default of anonymous read-write access to every topic applies. The NAS guide itself expects contacts to reach this instance directly ('subscribe to their topic URL, e.g. https://nas:8090/cm-relative1', docs/DEPLOY-SYNOLOGY.md:262-263) although nothing in the base compose terminates TLS for ntfy, so that path is plain HTTP. If the operator followed the guide and copied .env.example (CM_NTFY_URL=http://ntfy, .env.example:29; the compose fallback is https://ntfy.sh, docker-compose.yml:34), the app's alert pump posts every ntfy alert to this container (main.py:484-488 -> channels.py:85-88): the message carries the wearer's name, a Google-Maps location link (channels.py:32-35) and, in the Actions header, the raw acknowledge URL (channels.py:83-84). Any device on the NAS's LAN (household, guest Wi-Fi, compromised IoT) or on any network the router forwards 8090 to can therefore (a) subscribe to a contact's topic if it knows or guesses the topic name (validated only as 4-64 chars of [A-Za-z0-9_-], wearers.py:249; ntfy offers no anonymous topic listing, so topic secrecy is the only gate), receive the alert and POST the ack URL to /api/v1/ack/{token} (main.py:339-344 -> do_ack 306-319, possession of the token is the only check) so the contact appears to have acknowledged and tier promotion stops; (b) publish spoofed 'Standby' alerts to a known topic; (c) passively read all alerts and ack URLs on the plaintext 8090 subscription traffic without guessing anything; (d) use the household's push server as an open relay. Calibration: topic-as-capability on an open ntfy is also the posture of the compose default https://ntfy.sh, so the differential introduced by this binding is the plaintext LAN transport, the LAN-wide relay and the loss of the 'private to the host' property the VPS overlay deliberately restores with !override 127.0.0.1 (docker-compose.vps.yml:17-18, 26-27, and its comment at 8-10 that ufw does not protect Docker-published ports). The 8080 publication additionally offers LAN peers a plaintext path to the bearer API, the enrol endpoint and the forwarded-header-trusting listener beside DSM's TLS terminator; the guide acknowledges this and only recommends the 127.0.0.1 bind as an aside (docs/DEPLOY-SYNOLOGY.md:100-102, 227-229). Whether the live NAS still runs the ntfy service, what it binds to, which ntfy CM_NTFY_URL names, and whether any contact uses an ntfy topic are owner-observed facts that decide the real result.",
+    "claimed_root_cause": "server/docker-compose.yml:77-78 and :18-19 publish the ntfy and app ports without a host_ip (0.0.0.0 on every host interface), and the ntfy service (:71-80) sets no authentication, so the base deployment used on the NAS hands an anonymous read-write push server over plain HTTP, and a plaintext API listener, to every peer on the host's networks; the loopback pinning that the VPS overlay applies (docker-compose.vps.yml:17-18, 26-27) is absent from the file the NAS consumes.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "server/docker-compose.yml",
+        "line": 78,
+        "scope": "services.ntfy.ports",
+        "description": "`- \"8090:80\"` with no host_ip publishes the ntfy container's port 80 on all host interfaces (Docker inserts its own DNAT rules, bypassing host firewalls such as ufw, as docker-compose.vps.yml:8-10 notes); a LAN peer reaches ntfy here."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/docker-compose.yml",
+        "line": 75,
+        "scope": "services.ntfy.command: serve",
+        "description": "ntfy is started with bare `serve` and no auth-file, auth-default-access, NTFY_* environment or server.yml mount anywhere in the service (lines 71-80), so the image's documented default of anonymous read-write access to every topic applies."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/.env.example",
+        "line": 29,
+        "scope": "CM_NTFY_URL=http://ntfy",
+        "description": "The example env the NAS guide copies (`cp .env.example .env`, docs/DEPLOY-SYNOLOGY.md:47) points the app's ntfy delivery at this bundled container; the compose fallback when the variable is absent is https://ntfy.sh (docker-compose.yml:34)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/main.py",
+        "line": 485,
+        "scope": "pump_cycle escalation delivery",
+        "description": "For every due contact the pump builds ack_url = f\"{PUBLIC_URL}/api/v1/ack/{raw_token}\" and renders the alert (wearer name, detector, location link) before calling the contact's channel (lines 484-488)."
+      },
+      {
+        "kind": "propagation",
+        "file": "server/app/channels.py",
+        "line": 83,
+        "scope": "NtfyChannel.deliver Actions header",
+        "description": "The alert is POSTed to f\"{base_url}/{quote(topic)}\" (line 86) with `Actions: http, Acknowledge, <ack_url>, method=POST, clear=true`; every subscriber of that topic on the open ntfy, and any passive observer of the plaintext 8090 subscription stream, receives the raw ack URL and the alert content."
+      },
+      {
+        "kind": "sink",
+        "file": "server/app/main.py",
+        "line": 306,
+        "scope": "do_ack (reached via POST /api/v1/ack/{ack_token}, line 339)",
+        "description": "The only check is possession of the token (lookup_ack_token(hash) + unresolved): a LAN subscriber who obtained the URL records the ack for the contact (record_ack, line 314), which the escalation treats as that contact responding and tier promotion stops; conversely a LAN publisher can push spoofed 'Standby' alerts into the same topic."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "server/docker-compose.yml",
+        "line": 19,
+        "description": "`- \"8080:8080\"` with no host IP: the plaintext API/dashboard listener is published on all interfaces of the NAS (the owner's local copy uses host port 8081 per docs/DEPLOY-SYNOLOGY.md:85)."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 78,
+        "description": "`- \"8090:80\"` with no host IP: the ntfy listener is published on all interfaces."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 75,
+        "description": "`command: serve` — the whole ntfy service (lines 71-80) has no auth-related configuration or environment."
+      },
+      {
+        "file": "server/docker-compose.yml",
+        "line": 34,
+        "description": "`CM_NTFY_URL: ${CM_NTFY_URL:-https://ntfy.sh}` — the compose fallback differs from .env.example, so which ntfy carries alerts depends on the NAS .env."
+      },
+      {
+        "file": "server/docker-compose.vps.yml",
+        "line": 9,
+        "description": "The overlay's comment (lines 8-10) states Docker publishes ports through its own iptables chains so `ufw deny 8080` does not protect a published port; the overlay pins monitor and ntfy to 127.0.0.1 with !override (lines 17-18, 26-27), a control the base file lacks."
+      },
+      {
+        "file": "docs/DEPLOY-SYNOLOGY.md",
+        "line": 58,
+        "description": "NAS guide: Container Manager project with source 'Use existing docker-compose.yml' — the base file is the production manifest."
+      },
+      {
+        "file": "docs/DEPLOY-SYNOLOGY.md",
+        "line": 62,
+        "description": "'`ntfy` on port 8090 (self-hosted push; optional — remove from docker-compose.yml if you use ntfy.sh or Telegram only)' — removal is optional and manual."
+      },
+      {
+        "file": "docs/DEPLOY-SYNOLOGY.md",
+        "line": 262,
+        "description": "'The `ntfy` container needs no account: contacts install the ntfy app and subscribe to their topic URL, e.g. `https://nas:8090/cm-relative1`' — the guide expects contacts to reach 8090 directly, while nothing in the base compose terminates TLS for ntfy."
+      },
+      {
+        "file": "docs/DEPLOY-SYNOLOGY.md",
+        "line": 227,
+        "description": "'Port 8080 is published on the NAS, so LAN clients could spoof the forwarding header — bind it to the NAS (`127.0.0.1:8080:8080`) if that matters on your network' — the LAN exposure of the app port is acknowledged and the loopback bind is left optional."
+      },
+      {
+        "file": "server/app/wearers.py",
+        "line": 249,
+        "description": "`_NTFY_RE = ^[A-Za-z0-9_-]{4,64}$` — contact topics may be as short as 4 characters, so topic secrecy, the only gate on an open ntfy, can be weak."
+      },
+      {
+        "file": "server/app/channels.py",
+        "line": 35,
+        "description": "Alert body includes `Location: https://maps.google.com/?q=<lat,lon>` and the wearer's name — the data a LAN subscriber or plaintext observer receives."
+      }
+    ],
+    "blockers": [
+      "The live NAS compose project cannot be observed here: whether the ntfy service is still present, what the published ports actually bind to (0.0.0.0 vs 127.0.0.1 vs a LAN address) and whether the router or a DSM reverse-proxy rule exposes 8090 beyond the LAN are owner-observed facts; docs/DEPLOY-SYNOLOGY.md:262 suggests contacts are meant to reach 8090 directly.",
+      "The effective CM_NTFY_URL on the NAS (.env is out of bounds for this audit; the compose fallback is https://ntfy.sh while .env.example says http://ntfy) decides whether the open ntfy carries real alerts and raw ack URLs or is only an open relay.",
+      "Whether any enrolled contact actually has an ntfy topic (vs Telegram/email only) is database state visible only to the owner; without ntfy contacts the pump never posts to the instance.",
+      "ntfy's anonymous read-write default is taken from the vendor's documentation for the auth-default-access setting, not re-verified against image v2.28.0 under this run's no-network policy; the owner's rendered config observation closes this.",
+      "Trust level of the NAS's LAN (flat home network with guests/IoT vs an isolated VLAN) is an environmental fact that scales the likelihood."
+    ],
+    "validation_plan": {
+      "local": "From a checkout, render the manifest without starting anything: `cd server && docker compose -f docker-compose.yml config` — confirm that `services.monitor.ports` and `services.ntfy.ports` render with `published: \"8080\"`/`\"8090\"` and no `host_ip` key (meaning 0.0.0.0), and that `services.ntfy` has no `environment` entries and no server.yml volume. For comparison `docker compose -f docker-compose.yml -f docker-compose.vps.yml config` must show `host_ip: 127.0.0.1` on both. The pytest fixtures in server/tests/conftest.py use a FakeChannel and do not model ntfy, so no in-process test applies.",
+      "deployment": "On the NAS over SSH (observation only, no traffic): (1) `docker ps --format '{{.Names}} {{.Ports}}'` — a line such as `cryomonitor-ntfy-1 0.0.0.0:8090->80/tcp` (or `sudo ss -ltnp | grep -E ':(8081|8080|8090)\\b'` showing `0.0.0.0:`/`*:`) confirms all-interface publishing; `127.0.0.1:` refutes it. (2) `cd /volume1/docker/cryomonitor && docker compose config | sed -n '/ntfy:/,$p'` — confirm the ntfy service is present and has no NTFY_AUTH_FILE / NTFY_AUTH_DEFAULT_ACCESS environment and no server.yml mount. (3) `docker compose exec monitor printenv CM_NTFY_URL` — `http://ntfy` means the bundled instance receives alerts and ack URLs; `https://ntfy.sh` means it is only an open relay. (4) In the dashboard, check whether any contact has an ntfy topic and how long those topics are. (5) In the router and DSM Login Portal → Reverse Proxy, confirm nothing forwards or proxies to 8090. Remediation if confirmed: pin both to loopback or the NAS's LAN/VPN address in the compose file (`127.0.0.1:8090:80`, `127.0.0.1:8080:8080`), publish ntfy to contacts only through DSM's TLS reverse proxy, and configure ntfy auth (`NTFY_AUTH_FILE`, `NTFY_AUTH_DEFAULT_ACCESS=deny-all`, per-topic write-only for the app and read-only for contacts) or drop the service when Telegram/email suffice; fix docs/DEPLOY-SYNOLOGY.md:262 accordingly."
+    }
+  }
+]
