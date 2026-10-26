@@ -760,7 +760,8 @@ static void main_window_load(Window *w) {
   layer_add_child(root, text_layer_get_layer(s_status_layer));
 
   s_diag_layer = text_layer_create(
-      GRect(0, STATUS_BAR_LAYER_HEIGHT + 78, b.size.w, 44));
+      GRect(0, STATUS_BAR_LAYER_HEIGHT + 76, b.size.w, 54));  /* two Gothic 18 lines
+                                   need ~50 px; 44 clipped the second (field 2026-10-26) */
   text_layer_set_font(s_diag_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
   text_layer_set_text_alignment(s_diag_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_diag_layer, GColorClear);
