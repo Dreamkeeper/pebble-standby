@@ -210,8 +210,15 @@ class Store:
                 (code_hash, now)).fetchone()
             if not r:
                 return None
-            c.execute("UPDATE enroll_codes SET used_t=? WHERE code_hash=?",
-                      (now, code_hash))
+            # The burn is the uniqueness check: one conditional UPDATE is
+            # atomic, so an overlapping exchange of the same code changes 0
+            # rows and mints nothing (security hunt 2026-10-26).
+            burned = c.execute(
+                "UPDATE enroll_codes SET used_t=? "
+                "WHERE code_hash=? AND used_t IS NULL AND expires_t > ?",
+                (now, code_hash, now)).rowcount
+            if burned != 1:
+                return None
             c.execute("INSERT INTO tokens (token_hash, wearer_id, created_t) "
                       "VALUES (?,?,?)", (new_token_hash, r["wearer_id"], now))
             return r["wearer_id"]

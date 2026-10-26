@@ -23,6 +23,9 @@ router = APIRouter(prefix="/api/v1")
 
 ADMIN_TOKEN = os.environ.get("CM_ADMIN_TOKEN", "")
 ENROLL_TTL_S = int(os.environ.get("CM_ENROLL_TTL_S", str(24 * 3600)))
+# One wearer's safety net is a handful of people; an uncapped list is a
+# relay for whoever holds the token (security hunt 2026-10-26).
+MAX_CONTACTS_PER_WEARER = 10
 
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -87,6 +90,13 @@ def require_admin(authorization: str | None = Header(default=None),
         op = current_operator(request)
         if op is not None:
             if op.role == "admin":
+                # A cookie is ambient: a mutation needs the session's CSRF
+                # token in the X-CSRF header, as every /ui route requires
+                # (security hunt 2026-10-26, require_admin:cookie-path-no-csrf).
+                if request.method not in ("GET", "HEAD", "OPTIONS"):
+                    supplied = request.headers.get("X-CSRF", "")
+                    if not secrets.compare_digest(supplied, op.csrf):
+                        raise HTTPException(403, "CSRF token missing or wrong")
                 return Auth(role="admin", wearer_id=None)
             db.add_event(None, "admin_refused",
                          {"operator": op.username, "surface": "api"})
@@ -205,6 +215,8 @@ def disable_wearer(wearer_id: str, request: Request,
         raise HTTPException(404, "unknown wearer")
     db.set_wearer_enabled(wearer_id, False)
     db.add_event(wearer_id, "wearer_disabled", {})
+    from . import main as rt   # stop queued paging now, not next cycle
+    rt._resolve_open_for(wearer_id, "wearer_disabled", by="admin")
     return {"ok": True}
 
 
@@ -312,6 +324,10 @@ def upsert_contact(body: ContactIn, wearer_id: str | None = Query(default=None),
         raise HTTPException(422, {"fields": errors})
     if body.tier_name not in {t["name"] for t in db.list_tiers(wid)}:
         raise HTTPException(422, {"fields": {"tier_name": "unknown tier"}})
+    existing = {c["id"] for c in db.list_contacts(wid)}
+    if body.id not in existing and len(existing) >= MAX_CONTACTS_PER_WEARER:
+        raise HTTPException(422, {"fields": {
+            "contacts": f"at most {MAX_CONTACTS_PER_WEARER} contacts per wearer"}})
     cid = db.upsert_contact(wid, body.model_dump())
     db.add_event(wid, "contact_upserted",
                  {"contact_id": cid, "by": auth.role})

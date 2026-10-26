@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import secrets
 import threading
 import time
 import uuid
+from typing import Literal
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
 
 from . import diagnostics, operators, telegram_poll, ui
 from .channels import build_channels, render_message
@@ -35,10 +38,20 @@ log = logging.getLogger("cryomonitor")
 # The API description is a map for attackers as much as for developers:
 # off in production unless asked for (hardening 2026-10-13, harden-ci 14).
 _API_DOCS = os.environ.get("CM_API_DOCS") == "1"
-app = FastAPI(title="Standby Server", version="0.3.6",
+app = FastAPI(title="Standby Server", version="0.3.7",
               docs_url="/docs" if _API_DOCS else None,
               redoc_url="/redoc" if _API_DOCS else None,
               openapi_url="/openapi.json" if _API_DOCS else None)
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    # FastAPI's default 422 echoes the offending input; a value that failed
+    # validation because it cannot be serialised (a lone surrogate, inf)
+    # would then crash the error response itself (security hunt 2026-10-26).
+    detail = [{"loc": e.get("loc"), "msg": str(e.get("msg")), "type": e.get("type")}
+              for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 # Response hardening for every route (hardening 2026-10-13). The policy
@@ -154,20 +167,51 @@ def create_escalation(wearer_id: str, kind: AlertKind, detector: str,
 
 class HeartbeatIn(BaseModel):
     token: str = ""
-    phone_battery_pct: int | None = None
-    watch_battery_pct: int | None = None
-    watch_data_age_s: int | None = None
+    phone_battery_pct: int | None = Field(default=None, ge=-1, le=100)
+    watch_battery_pct: int | None = Field(default=None, ge=-1, le=100)
+    watch_data_age_s: int | None = Field(default=None, ge=0, le=10**9)
     suspended_until: float | None = None
     low_battery_warning: bool = False
-    command_ack: str | None = None   # echo of the last executed command
+    command_ack: str | None = Field(default=None, max_length=128)
+
+    @field_validator("suspended_until")
+    @classmethod
+    def _finite_epoch(cls, v):
+        # Security hunt 2026-10-26: +Infinity reached the dashboard's int()
+        # and took every fleet page down for every operator.
+        if v is not None and (not math.isfinite(v) or v < 0 or v > 4e9):
+            raise ValueError("suspended_until must be a finite epoch time")
+        return v
+
+
+# Containment limits for what one wearer token can make the server do
+# (security hunt 2026-10-26, confirmed finding create_escalation:no-per-
+# wearer-open-escalation-or-fanout-bound). Enforced here, on the wearer's
+# own data, so the spec's tenant-isolation invariant does not depend on
+# trusting the phone.
+MAX_OPEN_ESCALATIONS_PER_WEARER = 3
+MAX_SENDS_PER_WEARER_PER_CYCLE = 20
 
 
 class AlarmIn(BaseModel):
     token: str = ""
-    detector: str
-    kind: str = "watch_alarm"   # watch_alarm | fault | test
-    lat: float | None = None
-    lon: float | None = None
+    detector: str = Field(min_length=1, max_length=64)
+    # The phone may raise watch alarms, faults and tests; phone_silent is
+    # the server's own dead-man kind and is not accepted from a wearer.
+    kind: Literal["watch_alarm", "fault", "test"] = "watch_alarm"
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lon: float | None = Field(default=None, ge=-180, le=180)
+
+    @field_validator("detector")
+    @classmethod
+    def _printable(cls, v: str) -> str:
+        # The detector lands verbatim in every outbound message: no control
+        # characters (spoofed lines) and nothing a UTF-8 encoder rejects
+        # (a lone surrogate raised inside the pump and stalled delivery).
+        v.encode("utf-8")
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in v):
+            raise ValueError("detector must be printable text")
+        return v
 
 
 class OfflineWindowIn(BaseModel):
@@ -252,13 +296,37 @@ def alarm(a: AlarmIn, authorization: str | None = Header(default=None)):
     # Idempotent-ish: a phone retry (lost response, service restart) must
     # not spawn a second escalation that the wearer's cancel then misses
     # (review 2026-08-29 finding 8).
-    for eid, (wid, e) in escalations.items():
-        if (wid == auth.wearer_id and not e.resolved
-                and e.kind.value == a.kind and e.detector == a.detector):
+    mine = [(eid, e) for eid, (wid, e) in escalations.items()
+            if wid == auth.wearer_id and not e.resolved]
+    for eid, e in mine:
+        if e.kind.value == a.kind and e.detector == a.detector:
             return {"escalation_id": eid}
+    if len(mine) >= MAX_OPEN_ESCALATIONS_PER_WEARER:
+        # Fold into the newest open escalation instead of fanning out
+        # again: the contacts are already being paged for this wearer.
+        newest = max(mine, key=lambda p: p[1].started_t)[0]
+        db.add_event(auth.wearer_id, "alarm_collapsed",
+                     {"detector": a.detector, "alert_kind": a.kind,
+                      "into": newest})
+        return {"escalation_id": newest}
     esc_id = create_escalation(auth.wearer_id, AlertKind(a.kind),
                                a.detector, loc, time.time())
     return {"escalation_id": esc_id}
+
+
+def _resolve_open_for(wearer_id: str, resolution: str, by: str) -> list[str]:
+    """Resolve every open escalation of a wearer with an audited reason.
+    Used by the admin's disable (its kill switch must stop queued paging,
+    security hunt 2026-10-26) and by the pump for already-disabled wearers."""
+    done = []
+    for eid, (wid, e) in list(escalations.items()):
+        if wid == wearer_id and not e.resolved:
+            e.resolve(resolution)
+            _persist_escalation(eid)
+            db.add_event(wid, "resolved", {"id": eid, "resolution": resolution,
+                                           "by": by})
+            done.append(eid)
+    return done
 
 
 @app.post("/api/v1/alarm/resolve-open")
@@ -407,8 +475,15 @@ def _has_open(wearer_id: str, kind: AlertKind) -> bool:
 
 
 async def _deliver(channel, address: str, text: str, ack_url, ack_token) -> bool:
-    return await asyncio.to_thread(channel.deliver, address, text,
-                                   ack_url, ack_token)
+    # A transport that raises (not just returns False) must count as a
+    # failed send, never abort the cycle: one escalation's problem stayed
+    # at the head of the queue for every wearer (security hunt 2026-10-26).
+    try:
+        return await asyncio.to_thread(channel.deliver, address, text,
+                                       ack_url, ack_token)
+    except Exception:
+        log.exception("send raised for %s", address)
+        return False
 
 
 async def _notify_phone_recovered(wid: str, t: float) -> None:
@@ -465,42 +540,71 @@ async def pump_cycle(now: float | None = None) -> None:
             await _notify_phone_recovered(wid, t)
 
     # escalation delivery
+    enabled = {w["id"] for w in db.list_wearers() if w["enabled"]}
+    sent_this_cycle: dict[str, int] = {}
     for esc_id, (wid, esc) in list(escalations.items()):
         if esc.resolved:
             continue
-        sends = esc.step(t)
-        if not sends:
+        if wid not in enabled:
+            # Disable is the admin's stop switch: nothing more leaves for
+            # this wearer, and the stop is visible in the audit stream.
+            _resolve_open_for(wid, "wearer_disabled", by="system")
             continue
-        wearer = db.get_wearer(wid) or {"name": wid}
-        delivered: dict[str, list[str]] = {}
-        for send in sends:
-            address = dict(send.contact.addresses).get(send.channel)
-            channel = CHANNELS.get(send.channel)
-            if not address or channel is None:
-                db.add_event(wid, "send_unroutable",
-                             {"id": esc_id, "contact": send.contact.id,
-                              "channel": send.channel})
-                continue
-            raw_token = _ack_token_for(esc_id, wid, send.contact.id)
-            ack_url = f"{PUBLIC_URL}/api/v1/ack/{raw_token}" if PUBLIC_URL else None
-            text = render_message(wearer["name"], esc.kind.value, esc.detector,
-                                  esc.location, esc_id)
-            ok = await _deliver(channel, address, text, ack_url, raw_token)
-            db.add_event(wid, "send",
-                         {"id": esc_id, "contact": send.contact.id,
-                          "channel": send.channel, "attempt": send.attempt,
-                          "delivered": ok})
-            if ok:
-                delivered.setdefault(send.contact.name, []).append(send.channel)
-        # advance every due contact's clock: failures retry on the repeat
-        # cadence, not every pump cycle
-        for cid in {s.contact.id for s in sends}:
-            esc.record_sent(cid, t)
-        _persist_escalation(esc_id)
+        try:
+            await _deliver_escalation(esc_id, wid, esc, t, sent_this_cycle)
+        except Exception:
+            # Never let one escalation's failure starve the ones after it.
+            log.exception("delivery failed for %s", esc_id)
 
-        # wearer self-notification: one labeled summary per delivery cycle
-        if delivered:
-            await _self_notify(wid, wearer, esc, esc_id, delivered)
+
+async def _deliver_escalation(esc_id: str, wid: str, esc, t: float,
+                              sent_this_cycle: dict[str, int]) -> None:
+    sends = esc.step(t)
+    if not sends:
+        return
+    wearer = db.get_wearer(wid) or {"name": wid}
+    delivered: dict[str, list[str]] = {}
+    attempted: set[str] = set()
+    suppressed = 0
+    for send in sends:
+        if sent_this_cycle.get(wid, 0) >= MAX_SENDS_PER_WEARER_PER_CYCLE:
+            # Per-wearer budget per cycle: the rest goes out on the next
+            # cycles, so one wearer's fan-out cannot monopolise the pump.
+            suppressed += 1
+            continue
+        attempted.add(send.contact.id)
+        address = dict(send.contact.addresses).get(send.channel)
+        channel = CHANNELS.get(send.channel)
+        if not address or channel is None:
+            db.add_event(wid, "send_unroutable",
+                         {"id": esc_id, "contact": send.contact.id,
+                          "channel": send.channel})
+            continue
+        sent_this_cycle[wid] = sent_this_cycle.get(wid, 0) + 1
+        raw_token = _ack_token_for(esc_id, wid, send.contact.id)
+        ack_url = f"{PUBLIC_URL}/api/v1/ack/{raw_token}" if PUBLIC_URL else None
+        text = render_message(wearer["name"], esc.kind.value, esc.detector,
+                              esc.location, esc_id)
+        ok = await _deliver(channel, address, text, ack_url, raw_token)
+        db.add_event(wid, "send",
+                     {"id": esc_id, "contact": send.contact.id,
+                      "channel": send.channel, "attempt": send.attempt,
+                      "delivered": ok})
+        if ok:
+            delivered.setdefault(send.contact.name, []).append(send.channel)
+    if suppressed:
+        db.add_event(wid, "send_suppressed",
+                     {"id": esc_id, "count": suppressed,
+                      "budget": MAX_SENDS_PER_WEARER_PER_CYCLE})
+    # advance every attempted contact's clock: failures retry on the repeat
+    # cadence, not every pump cycle; suppressed ones come up next cycle
+    for cid in attempted:
+        esc.record_sent(cid, t)
+    _persist_escalation(esc_id)
+
+    # wearer self-notification: one labeled summary per delivery cycle
+    if delivered:
+        await _self_notify(wid, wearer, esc, esc_id, delivered)
 
 
 async def _self_notify(wid: str, wearer: dict, esc, esc_id: str,

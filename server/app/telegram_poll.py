@@ -86,23 +86,32 @@ async def poll_loop(bot_token: str, store, on_ack: Callable[[str], Awaitable[str
             if updates:
                 for update_id, chat_id, name in parse_messages(updates):
                     log.info("telegram onboarding message from chat %s (%s)",
-                             chat_id, name)
-                    await asyncio.to_thread(
-                        _api, bot_token, "sendMessage",
-                        {"chat_id": chat_id,
-                         "text": ("Standby bot. Your chat id is: "
-                                  f"{chat_id}\nGive this number to the "
-                                  "wearer or operator so they can add you "
-                                  "as an emergency contact.")}, 15)
+                             chat_id, str(name)[:64].replace("\n", " "))
+                    # One chat that blocked the bot must not block the
+                    # batch: the offset would never advance and every later
+                    # acknowledgement would be lost (security hunt 2026-10-26).
+                    try:
+                        await asyncio.to_thread(
+                            _api, bot_token, "sendMessage",
+                            {"chat_id": chat_id,
+                             "text": ("Standby bot. Your chat id is: "
+                                      f"{chat_id}\nGive this number to the "
+                                      "wearer or operator so they can add you "
+                                      "as an emergency contact.")}, 15)
+                    except Exception as e:
+                        log.warning("onboarding reply to %s failed: %s", chat_id, e)
                 for cb in parse_ack_callbacks(updates):
                     try:
                         text = await on_ack(cb["token"])
                     except Exception:
                         log.exception("ack handler failed")
                         text = "Error recording acknowledgement"
-                    await asyncio.to_thread(
-                        _api, bot_token, "answerCallbackQuery",
-                        {"callback_query_id": cb["cq_id"], "text": text[:190]}, 15)
+                    try:
+                        await asyncio.to_thread(
+                            _api, bot_token, "answerCallbackQuery",
+                            {"callback_query_id": cb["cq_id"], "text": text[:190]}, 15)
+                    except Exception as e:
+                        log.warning("answerCallbackQuery failed: %s", e)
                     # edit the original message: button gone, outcome visible
                     if cb["chat_id"] is not None and cb["message_id"] is not None:
                         marker = ("✅ ACKNOWLEDGED"

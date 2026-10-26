@@ -27,7 +27,8 @@ log = logging.getLogger("cryomonitor.operators")
 SESSION_COOKIE = "cm_session"
 SESSION_TTL_S = int(os.environ.get("CM_SESSION_TTL_S", str(7 * 86400)))
 LOGIN_WINDOW_S = 900
-LOGIN_MAX_ATTEMPTS = 5          # per account and per address, per window
+LOGIN_MAX_ATTEMPTS = 5          # per address, and per account from one address
+LOGIN_USER_ALERT_ATTEMPTS = 20  # per account from anywhere: audited, never a lockout
 _SCRYPT = {"n": 16384, "r": 8, "p": 1}
 
 
@@ -83,8 +84,11 @@ def admin_accounts_exist() -> bool:
 # ---- login / logout ----
 
 def check_rate_limit(username: str, client: str) -> None:
+    # The account bucket is bound to the calling address: a stranger's
+    # failures for this username never lock the operator out from another
+    # address (security hunt 2026-10-26, check_rate_limit:username-lockout).
     since = time.time() - LOGIN_WINDOW_S
-    if (db.login_attempts_since(f"u:{username}", since) >= LOGIN_MAX_ATTEMPTS or
+    if (db.login_attempts_since(f"u:{username}@{client}", since) >= LOGIN_MAX_ATTEMPTS or
             db.login_attempts_since(f"a:{client}", since) >= LOGIN_MAX_ATTEMPTS):
         raise HTTPException(429, "too many login attempts; wait 15 minutes")
 
@@ -96,10 +100,15 @@ def login(username: str, password: str, client: str) -> tuple[str, Operator] | N
     ok = op is not None and bool(op["enabled"]) and \
         verify_password(password, op["pw"])
     if not ok:
-        db.record_login_attempt(f"u:{username}")
+        db.record_login_attempt(f"u:{username}@{client}")
         db.record_login_attempt(f"a:{client}")
-        db.add_event(None, "login_failed", {"operator": username,
+        db.record_login_attempt(f"u:{username}")
+        db.add_event(None, "login_failed", {"operator": username[:64],
                                             "client": client})
+        if db.login_attempts_since(f"u:{username}", time.time() - LOGIN_WINDOW_S) \
+                == LOGIN_USER_ALERT_ATTEMPTS:
+            db.add_event(None, "login_guessing_suspected",
+                         {"operator": username[:64], "client": client})
         return None
     raw = secrets.token_urlsafe(32)
     csrf = secrets.token_urlsafe(24)

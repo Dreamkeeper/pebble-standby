@@ -10,9 +10,13 @@
 	reverse_proxy monitor:8080
 }
 
-# Optional self-hosted push server for contacts. Leave CM_NTFY_DOMAIN
-# unset to keep it private (the placeholder host is never reachable from
-# outside); set it to a second DNS name to let contacts subscribe.
+# Optional self-hosted push server for contacts. Set CM_NTFY_DOMAIN to a
+# second DNS name to let contacts subscribe. Unset, the site keeps the
+# placeholder name and answers 404: Caddy picks a site by the name the
+# client presents, so a placeholder is still reachable by anyone who
+# sends it as SNI or Host (security hunt 2026-10-26).
 {$CM_NTFY_DOMAIN:ntfy.localhost} {
+	@placeholder host ntfy.localhost
+	respond @placeholder 404
 	reverse_proxy ntfy:80
 }

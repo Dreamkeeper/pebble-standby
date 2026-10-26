@@ -11,7 +11,7 @@
     <td>{{ "active" if o.enabled else "disabled" }}</td>
     <td>
       <form class="inline" method="post"
-            action="/ui/operators/{{ o.username }}/role">
+            action="/ui/operators/{{ o.username | urlencode }}/role">
         <input type="hidden" name="csrf" value="{{ op.csrf }}">
         <select name="role">
           <option {% if o.role == 'responder' %}selected{% endif %}>responder</option>
@@ -20,13 +20,13 @@
         <button>Set role</button>
       </form>
       <form class="inline" method="post"
-            action="/ui/operators/{{ o.username }}/password">
+            action="/ui/operators/{{ o.username | urlencode }}/password">
         <input type="hidden" name="csrf" value="{{ op.csrf }}">
         <input name="password" type="password" placeholder="new password">
         <button>Reset password</button>
       </form>
       <form class="inline" method="post"
-            action="/ui/operators/{{ o.username }}/{{ 'disable' if o.enabled else 'enable' }}">
+            action="/ui/operators/{{ o.username | urlencode }}/{{ 'disable' if o.enabled else 'enable' }}">
         <input type="hidden" name="csrf" value="{{ op.csrf }}">
         <button>{{ 'Disable' if o.enabled else 'Enable' }}</button>
       </form>

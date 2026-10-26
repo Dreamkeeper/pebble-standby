@@ -8,7 +8,10 @@ Imports of runtime state (escalations, monitors) happen lazily via
 """
 from __future__ import annotations
 
+import asyncio
+import math
 import os
+import re
 import secrets
 import time
 from pathlib import Path
@@ -26,6 +29,10 @@ from .wearers import ContactIn, _validate_contact, generate_enroll_code, \
     hash_token, _normalize_code, ENROLL_TTL_S
 
 router = APIRouter(prefix="/ui")
+
+# Operators are addressed as one URL path segment; a name the routes cannot
+# match could never be disabled or reset (security hunt 2026-10-26).
+_USERNAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,31}")
 
 _HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(_HERE / "templates"))
@@ -89,7 +96,7 @@ def wearer_states(w: dict) -> tuple[int, list[dict]]:
         score = max(score, 70)
 
     susp = db.get_suspended_until(wid)
-    if susp and susp > time.time():
+    if susp and math.isfinite(susp) and susp > time.time():
         states.append({"css": "suspended",
                        "label": f"suspended {int((susp - time.time()) / 60)}m"})
         score = max(score, 30)
@@ -142,8 +149,10 @@ def login_page(request: Request):
 async def login_post(request: Request):
     form = await request.form()
     client = request.client.host if request.client else "unknown"
-    result = ops.login(str(form.get("username", "")).strip(),
-                       str(form.get("password", "")), client)
+    # scrypt is slow by design; keep it off the event loop that also runs
+    # the pump and the Telegram poller.
+    result = await asyncio.to_thread(ops.login, str(form.get("username", "")).strip(),
+                                     str(form.get("password", "")), client)
     if result is None:
         return templates.TemplateResponse(request, "login.html", {
             "op": None, "error": "Login failed.",
@@ -454,6 +463,7 @@ async def ui_disable_wearer(request: Request, wid: str):
     await ops.verify_csrf(request, op)
     db.set_wearer_enabled(wid, False)
     db.add_event(wid, "wearer_disabled", {"operator": op.username})
+    _rt()._resolve_open_for(wid, "wearer_disabled", by=f"operator:{op.username}")
     return RedirectResponse(f"/ui/wearers/{wid}", status_code=303)
 
 
@@ -485,10 +495,12 @@ async def op_create(request: Request):
     username = str(form.get("username", "")).strip()
     password = str(form.get("password", ""))
     role = str(form.get("role", "responder"))
-    if not username or len(password) < 8 or role not in ("admin", "responder"):
+    if (not _USERNAME_RE.fullmatch(username) or len(password) < 8
+            or role not in ("admin", "responder")):
         return operators_page(request,
-                              error="username, role, and a password of at "
-                                    "least 8 characters are required")
+                              error="username (letters, digits, . _ -, up to 32), "
+                                    "role, and a password of at least 8 "
+                                    "characters are required")
     if db.get_operator(username):
         return operators_page(request, error="username exists")
     db.create_operator(username, ops.hash_password(password), role)

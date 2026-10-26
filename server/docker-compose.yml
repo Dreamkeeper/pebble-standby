@@ -15,8 +15,12 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 512m
+    # Loopback only: the reverse proxy (DSM, Caddy, nginx) is the one way in.
+    # A bare "8080:8080" publishes the plaintext API to every network the
+    # host is on, and Docker's own rules bypass the host firewall
+    # (security hunt 2026-10-26).
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       # Legacy single-wearer token: migrated into wearer 'default' on
       # first boot with an empty database, inert afterwards.
@@ -33,6 +37,9 @@ services:
       CM_SMTP_FROM: ${CM_SMTP_FROM:-}
       CM_NTFY_URL: ${CM_NTFY_URL:-https://ntfy.sh}
       CM_ENROLL_TTL_S: ${CM_ENROLL_TTL_S:-86400}
+      CM_DIAG_MAX_BYTES: ${CM_DIAG_MAX_BYTES:-20971520}
+      CM_DIAG_RETENTION_DAYS: ${CM_DIAG_RETENTION_DAYS:-30}
+      CM_DIAG_MAX_BUNDLES_PER_WEARER: ${CM_DIAG_MAX_BUNDLES_PER_WEARER:-20}
       # Optional outbound HTTP(S) proxy for Telegram/ntfy.sh API calls —
       # needed where api.telegram.org is blocked (set e.g.
       # CM_OUTBOUND_PROXY=http://xray-client:1083). urllib honors these.
@@ -74,7 +81,10 @@ services:
     image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
     command: serve
     restart: unless-stopped
+    # ntfy has no authentication configured: anyone who reaches this port
+    # can read and publish every topic. Loopback only; expose it to
+    # contacts through the TLS reverse proxy, never directly.
     ports:
-      - "8090:80"
+      - "127.0.0.1:8090:80"
     volumes:
       - ./data/ntfy:/var/lib/ntfy

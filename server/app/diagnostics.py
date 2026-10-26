@@ -22,6 +22,11 @@ router = APIRouter(prefix="/api/v1")
 
 MAX_BYTES = int(os.environ.get("CM_DIAG_MAX_BYTES", str(20 * 1024 * 1024)))
 RETENTION_DAYS = int(os.environ.get("CM_DIAG_RETENTION_DAYS", "30"))
+# Per-wearer quota: the bundles share the volume that holds the database
+# every send depends on (security hunt 2026-10-26, upload:no-per-wearer-quota).
+MAX_BUNDLES_PER_WEARER = int(os.environ.get("CM_DIAG_MAX_BUNDLES_PER_WEARER", "20"))
+MAX_BYTES_PER_WEARER = int(os.environ.get("CM_DIAG_MAX_BYTES_PER_WEARER",
+                                          str(200 * 1024 * 1024)))
 REQUEST_RANGES = (1, 3, 7, 14)
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -81,6 +86,10 @@ async def upload(request: Request, days: int = 7, request_id: str | None = None,
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > MAX_BYTES:
         raise HTTPException(413, "diagnostics bundle too large")
+    held = db.list_diagnostics(wid)
+    if (len(held) >= MAX_BUNDLES_PER_WEARER
+            or sum(int(r["size"] or 0) for r in held) >= MAX_BYTES_PER_WEARER):
+        raise HTTPException(429, "diagnostics quota reached; delete older bundles first")
 
     diag_id = f"diag-{int(time.time())}-{secrets.token_hex(4)}"
     final = bundle_path(wid, diag_id)

@@ -260,4 +260,7 @@ until restarts AND disk loss are both survivable.
   M2 and will live in the mounted `./data` volume, surviving container
   rebuilds.
 - The `ntfy` container needs no account: contacts install the ntfy app and
-  subscribe to their topic URL, e.g. `https://nas:8090/cm-relative1`.
+  subscribe to their topic. Since 0.3.7 the compose file binds ntfy to the
+  NAS's loopback only (anyone who reaches the port can read and publish
+  every topic); give contacts a DSM reverse-proxy name with TLS in front of
+  `localhost:8090`, never the bare port.
