@@ -1,0 +1,203 @@
+diff --git a/include/pbl/services/activity/activity_private.h b/include/pbl/services/activity/activity_private.h
+index 3e81bb7a8..922e28a28 100644
+--- a/include/pbl/services/activity/activity_private.h
++++ b/include/pbl/services/activity/activity_private.h
+@@ -842,6 +842,17 @@ void activity_metrics_prv_add_median_hr_sample(PebbleHRMEvent *hrm_event, time_t
+  */
+ void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist);
+ 
++/**
++ * @brief Invalidate the current (peekable) raw HR reading because the HRM
++ * reports the watch off-wrist.
++ *
++ * ActivityMetricHeartRateRawBPM reads 0 until a valid on-wrist reading
++ * arrives. Called once per off-wrist BPM event.
++ *
++ * @param now_utc Current UTC time.
++ */
++void activity_metrics_prv_set_raw_hr_offwrist(time_t now_utc);
++
+ /**
+  * @brief Check whether the HRM recently reported the watch off-wrist.
+  *
+diff --git a/pebble/applib/health_service.c b/pebble/applib/health_service.c
+index 9a3bf2446..79dfe35db 100644
+--- a/pebble/applib/health_service.c
++++ b/pebble/applib/health_service.c
+@@ -39,7 +39,8 @@
+ 
+ // ----------------------------------------------------------------------------------------------
+ static bool prv_is_heart_rate_metric(HealthMetric metric) {
+-  return (metric == HealthMetricHeartRateBPM) || (metric == HealthMetricHeartRateRawBPM);
++  return (metric == HealthMetricHeartRateBPM) || (metric == HealthMetricHeartRateRawBPM) ||
++         (metric == HealthMetricHeartRateRawQuality);
+ }
+ 
+ // ----------------------------------------------------------------------------------------------
+@@ -62,6 +63,7 @@ static HealthAggregation prv_default_aggregation(HealthMetric metric) {
+       return HealthAggregationSum;
+     case HealthMetricHeartRateBPM:
+     case HealthMetricHeartRateRawBPM:
++    case HealthMetricHeartRateRawQuality:
+       return HealthAggregationAvg;
+   }
+   pbl_panic();
+@@ -137,6 +139,8 @@ static ActivityMetric prv_get_activity_metric(HealthMetric metric) {
+       return ActivityMetricHeartRateFilteredBPM;
+     case HealthMetricHeartRateRawBPM:
+       return ActivityMetricHeartRateRawBPM;
++    case HealthMetricHeartRateRawQuality:
++      return ActivityMetricHeartRateRawConfidence;
+   }
+   pbl_panic();
+   return 0;
+@@ -159,8 +163,9 @@ static bool prv_metric_aggregation_implemented(HealthMetric metric, time_t time_
+     case HealthMetricActiveKCalories:
+       // We can only use HealthAggregationSum with accumulating metrics and scope doesn't matter
+       return (agg == HealthAggregationSum);
+-    case HealthMetricHeartRateRawBPM: {
+-      // Only support querying the current raw heart rate.
++    case HealthMetricHeartRateRawBPM:
++    case HealthMetricHeartRateRawQuality: {
++      // Only support querying the current raw heart rate / quality.
+       const bool query_cur_minute = prv_interval_within_last_minute(now_utc, time_start, time_end);
+       return ((agg == HealthAggregationAvg) && query_cur_minute);
+     }
+@@ -1026,7 +1031,8 @@ HealthValue health_service_peek_current_value(HealthMetric metric) {
+ static HealthValue prv_hr_aggregate_averaged(HealthServiceState *state, HealthMetric metric,
+                                              time_t time_start, time_t time_end,
+                                              HealthAggregation aggregation) {
+-  PBL_ASSERTN(metric == HealthMetricHeartRateBPM || metric == HealthMetricHeartRateRawBPM);
++  PBL_ASSERTN(metric == HealthMetricHeartRateBPM || metric == HealthMetricHeartRateRawBPM ||
++              metric == HealthMetricHeartRateRawQuality);
+ 
+   time_t now_utc = sys_get_time();
+   const bool query_cur_minute = prv_interval_within_last_minute(now_utc, time_start, time_end);
+@@ -1059,6 +1065,16 @@ static HealthValue prv_hr_aggregate_averaged(HealthServiceState *state, HealthMe
+     int32_t raw_bpm;
+     sys_activity_get_metric(ActivityMetricHeartRateRawBPM, 1, &raw_bpm);
+     return raw_bpm;
++  } else if (metric == HealthMetricHeartRateRawQuality) {
++    int32_t bpm;
++    sys_activity_get_metric(ActivityMetricHeartRateRawBPM, 1, &bpm);
++    if (bpm == 0) {
++      return -1;
++    }
++    // Preserve the original GH3x2x quality bands for installed watchapps.
++    int32_t confidence;
++    sys_activity_get_metric(ActivityMetricHeartRateRawConfidence, 1, &confidence);
++    return (confidence >= 70) + (confidence >= 80) + (confidence >= 90) + (confidence >= 98);
+   }
+ 
+   // Invalid
+diff --git a/pebble/applib/health_service.h b/pebble/applib/health_service.h
+index 723ff49e1..6fd781a38 100644
+--- a/pebble/applib/health_service.h
++++ b/pebble/applib/health_service.h
+@@ -57,6 +57,9 @@ typedef enum {
+   HealthMetricHeartRateBPM,
+   //! The raw heart rate value of the most recent sample, in beats per minute.
+   HealthMetricHeartRateRawBPM,
++  //! The quality of the most recent raw heart rate sample (HRMQuality:
++  //! -1 off-wrist, 0 worst .. 4 excellent). Diagnostic metric.
++  HealthMetricHeartRateRawQuality,
+ } HealthMetric;
+ 
+ //! Type used to represent HealthMetric values
+diff --git a/pebble/process_management/app_manager.c b/pebble/process_management/app_manager.c
+index 4f74658ec..a28cf2bb7 100644
+--- a/pebble/process_management/app_manager.c
++++ b/pebble/process_management/app_manager.c
+@@ -474,7 +474,12 @@ static void prv_app_cleanup(void) {
+   light_touch_up();
+   light_reset_user_controlled_by_task(PebbleTask_App);
+   light_set_system_color();
+-  sys_vibe_history_stop_collecting();
++  // Vibe history collection is owned by the accel manager: process cleanup
++  // above already dropped this app's accel subscription, and the manager
++  // stops collecting when the LAST subscriber goes. Stopping it here as
++  // well switched did_vibrate off for a background worker that stayed
++  // subscribed across the app's exit, so the worker then saw its own
++  // vibrations as motion.
+   // Clear only app-started vibes, so an app exit doesn't kill an alarm.
+   vibe_pattern_clear_for_owner(VibePatternOwner_App);
+ #ifndef CONFIG_RECOVERY_FW
+diff --git a/pebble/services/activity/activity.c b/pebble/services/activity/activity.c
+index 89ef3532f..33c71750c 100644
+--- a/pebble/services/activity/activity.c
++++ b/pebble/services/activity/activity.c
+@@ -196,7 +196,9 @@ PBL_T_STATIC void prv_hrm_subscription_cb(PebbleHRMEvent *hrm_event, void *conte
+     // signal (PPG off-wrist detection is far more reliable than the accel-only heuristics).
+     activity_metrics_prv_set_hrm_worn_status(now_utc, hrm_event->bpm.off_wrist);
+ 
+-    if (valid_hr_reading) {
++    if (hrm_event->bpm.off_wrist) {
++      activity_metrics_prv_set_raw_hr_offwrist(now_utc);
++    } else if (valid_hr_reading) {
+       // Update the heart rate metrics
+       activity_metrics_prv_add_median_hr_sample(hrm_event, now_utc, now_uptime_ts);
+ 
+diff --git a/pebble/services/activity/activity_metrics.c b/pebble/services/activity/activity_metrics.c
+index 8f562e49a..1d5651897 100644
+--- a/pebble/services/activity/activity_metrics.c
++++ b/pebble/services/activity/activity_metrics.c
+@@ -593,6 +593,18 @@ void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist)
+   pbl_mutex_unlock(&state->mutex);
+ }
+ 
++// --------------------------------------------------------------------------------------------
++void activity_metrics_prv_set_raw_hr_offwrist(time_t now_utc) {
++  ActivityState *state = activity_private_state();
++  pbl_mutex_lock(&state->mutex, PBL_FOREVER);
++  {
++    state->hr.metrics.current_bpm = 0;
++    state->hr.metrics.current_confidence = 0;
++    state->hr.metrics.current_update_time_utc = now_utc;
++  }
++  pbl_mutex_unlock(&state->mutex);
++}
++
+ // --------------------------------------------------------------------------------------------
+ bool activity_metrics_prv_is_hrm_offwrist(time_t now_utc) {
+   ActivityState *state = activity_private_state();
+diff --git a/tests/pebble/services/activity/test_activity.c b/tests/pebble/services/activity/test_activity.c
+index f383ebf83..cb5573141 100644
+--- a/tests/pebble/services/activity/test_activity.c
++++ b/tests/pebble/services/activity/test_activity.c
+@@ -2636,15 +2636,25 @@ void test_activity__hrm_ignore(void) {
+ 
+   // Should fire off an event. OffWrist, tell clients
+   prv_advance_time_hr(1 /*sec*/, 120 /*hr*/, OFF_WRIST, true /*force_continuous*/);
++  int32_t raw_bpm;
++  int32_t raw_confidence;
+   cl_assert_equal_i(s_num_hr_events, 2);
+   cl_assert_equal_i(s_last_hr_event.data.heart_rate_update.current_bpm, 0);
+   cl_assert(s_last_hr_event.data.heart_rate_update.off_wrist);
++  activity_get_metric(ActivityMetricHeartRateRawBPM, 1, &raw_bpm);
++  activity_get_metric(ActivityMetricHeartRateRawConfidence, 1, &raw_confidence);
++  cl_assert_equal_i(raw_bpm, 0);
++  cl_assert_equal_i(raw_confidence, 0);
+ 
+   // Should fire off an event. OffWrist, tell clients
+   prv_advance_time_hr(1 /*sec*/, 0 /*hr*/, OFF_WRIST, true /*force_continuous*/);
+   cl_assert_equal_i(s_num_hr_events, 3);
+   cl_assert_equal_i(s_last_hr_event.data.heart_rate_update.current_bpm, 0);
+   cl_assert(s_last_hr_event.data.heart_rate_update.off_wrist);
++  activity_get_metric(ActivityMetricHeartRateRawBPM, 1, &raw_bpm);
++  activity_get_metric(ActivityMetricHeartRateRawConfidence, 1, &raw_confidence);
++  cl_assert_equal_i(raw_bpm, 0);
++  cl_assert_equal_i(raw_confidence, 0);
+ 
+   // Should fire off an event. Good HR and Good Quality
+   prv_advance_time_hr(1 /*sec*/, 120 /*hr*/, CONF_EXCELLENT, true /*force_continuous*/);
+@@ -2652,6 +2662,10 @@ void test_activity__hrm_ignore(void) {
+   cl_assert_equal_i(s_last_hr_event.data.heart_rate_update.current_bpm, 120);
+   cl_assert(!s_last_hr_event.data.heart_rate_update.off_wrist);
+   cl_assert_equal_i(s_last_hr_event.data.heart_rate_update.confidence, CONF_EXCELLENT);
++  activity_get_metric(ActivityMetricHeartRateRawBPM, 1, &raw_bpm);
++  activity_get_metric(ActivityMetricHeartRateRawConfidence, 1, &raw_confidence);
++  cl_assert_equal_i(raw_bpm, 120);
++  cl_assert_equal_i(raw_confidence, CONF_EXCELLENT);
+ 
+   // Should not fire off an event. Bad HR reading
+   prv_advance_time_hr(1 /*sec*/, 20 /*hr*/, CONF_EXCELLENT, true /*force_continuous*/);

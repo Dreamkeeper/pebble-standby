@@ -1,0 +1,4 @@
+- [x] Port and package the atomic diagnostic snapshot for both retail Time 2 slots.
+- [x] Implement a compile-time observation-only emery worker and distinct PK2 log tag.
+- [x] Build the companion log receiver and provide a field protocol.
+- [ ] Collect labelled field runs and assess disagreement and missing follow-up.

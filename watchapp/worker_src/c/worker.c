@@ -193,14 +193,29 @@ static void set_hr_burst(bool on) {
   s_hr_burst_active = on ? 1 : 0;
 }
 
+#if defined(CM_PULSE_SHADOW) && defined(PBL_PLATFORM_EMERY)
+#define SHADOW 1
+#include "pulse_shadow.inc"
+#endif
+
 static void drain_actions(void) {
   cm_action a;
   while (cm_next_action(&s_core, &a)) {
     DLOG("act %s det=%u sec=%u reason=%u",
          action_name(a.type), a.detector, a.seconds, a.reason);
     switch (a.type) {
-      case CM_ACT_HR_BURST_ON:  set_hr_burst(true);  break;
-      case CM_ACT_HR_BURST_OFF: set_hr_burst(false); break;
+      case CM_ACT_HR_BURST_ON:
+        set_hr_burst(true);
+#ifdef SHADOW
+        shadow_start(&a);
+#endif
+        break;
+      case CM_ACT_HR_BURST_OFF:
+        set_hr_burst(false);
+#ifdef SHADOW
+        if (sh.live == UINT16_MAX) shadow_end(3);
+#endif
+        break;
 
       /* Needs the wearer's attention now: take the screen. */
       case CM_ACT_CHECKIN_START:
@@ -356,7 +371,13 @@ static void health_handler(HealthEventType event, void *context) {
       DLOG("hr raw=%d burst=%u", (int)bpm, s_hr_burst_active);
     }
 #endif
+#ifdef SHADOW
+    bool hunting = s_core.pulse_phase == 1;
+#endif
     cm_hr_feed(&s_core, bpm > 0 ? (uint16_t)bpm : 0, mono_ms());
+#ifdef SHADOW
+    shadow_observe(hunting && !s_core.pulse_phase);
+#endif
     drain_actions();
   }
 }
@@ -413,6 +434,10 @@ static void alarm_guard_check(void) {
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   s_mono_ms += 1000;
+#ifdef SHADOW
+  if (sh.active && ((mono_ms()-sh.start)/1000 >= sh.duration || s_core.suspended || s_core.charging))
+    shadow_end(s_core.suspended || s_core.charging ? 3 : 2);
+#endif
   if (tick_time->tm_sec % 10 == 0) alarm_guard_check();
   /* Wall-clock jump detection: suspensions deliberately keep wall-clock
    * semantics ("30 min" means 30 wall minutes), so on a correction the
@@ -630,12 +655,19 @@ static void init(void) {
   tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
   app_worker_message_subscribe(worker_message_handler);
 
+#ifdef SHADOW
+  shadow_log = data_logging_create(CM_SHADOW_TAG, DATA_LOGGING_BYTE_ARRAY, 16, true);
+#endif
   s_log_session = data_logging_create(
       CM_DL_TAG, DATA_LOGGING_BYTE_ARRAY, sizeof(cm_heartbeat_rec),
       /* resume */ true);
 }
 
 static void deinit(void) {
+#ifdef SHADOW
+  shadow_end(4);
+  if (shadow_log) data_logging_finish(shadow_log);
+#endif
   data_logging_finish(s_log_session);
   app_worker_message_unsubscribe();
   tick_timer_service_unsubscribe();

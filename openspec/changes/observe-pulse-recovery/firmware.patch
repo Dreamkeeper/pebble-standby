@@ -1,0 +1,123 @@
+diff --git a/include/pbl/services/activity/activity.h b/include/pbl/services/activity/activity.h
+index c8501fd82..a4cd5dbe9 100644
+--- a/include/pbl/services/activity/activity.h
++++ b/include/pbl/services/activity/activity.h
+@@ -270,6 +270,8 @@ typedef enum {
+   /** Minutes spent in heart rate zone 3 today. */
+   ActivityMetricHeartRateZone3Minutes,
+ 
++  ActivityMetricDiagnosticPulseSample,
++
+   // KEEP THIS AT THE END
+   /** Number of metrics. */
+   ActivityMetricNumMetrics,
+diff --git a/include/pbl/services/activity/activity_private.h b/include/pbl/services/activity/activity_private.h
+index 922e28a28..ac5594685 100644
+--- a/include/pbl/services/activity/activity_private.h
++++ b/include/pbl/services/activity/activity_private.h
+@@ -475,6 +475,7 @@ typedef struct {
+   uint8_t weights[ACTIVITY_MAX_HR_SAMPLES];
+ 
+   /** UTC time of the last BPM event, 0 if none. Used by sleep tracking to detect off-wrist. */
++  ActivityScalarStore diagnostic_sample;
+   time_t last_quality_event_utc;
+   /** Last BPM event reported off-wrist. */
+   bool last_quality_was_offwrist;
+@@ -840,7 +841,7 @@ void activity_metrics_prv_add_median_hr_sample(PebbleHRMEvent *hrm_event, time_t
+  * @param now_utc Current UTC time.
+  * @param is_offwrist true if the event quality was off-wrist.
+  */
+-void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist);
++void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist, uint8_t bpm, uint8_t confidence);
+ 
+ /**
+  * @brief Invalidate the current (peekable) raw HR reading because the HRM
+diff --git a/pebble/applib/health_service.c b/pebble/applib/health_service.c
+index 79dfe35db..06bbedcf0 100644
+--- a/pebble/applib/health_service.c
++++ b/pebble/applib/health_service.c
+@@ -1085,6 +1085,15 @@ static HealthValue prv_hr_aggregate_averaged(HealthServiceState *state, HealthMe
+ HealthValue health_service_aggregate_averaged(HealthMetric metric, pbl_time32_t time_start,
+                                               pbl_time32_t time_end, HealthAggregation aggregation,
+                                               HealthServiceTimeScope scope) {
++  // Private diagnostic read. Older firmware rejects sums for the raw BPM metric.
++  if (metric == HealthMetricHeartRateRawBPM && aggregation == HealthAggregationSum &&
++      scope == HealthServiceTimeScopeOnce && time_start == 0x5342 && time_end == 0x5343) {
++    int32_t sample = 0;
++    if (sys_activity_is_initialized()) {
++      sys_activity_get_metric(ActivityMetricDiagnosticPulseSample, 1, &sample);
++    }
++    return sample;
++  }
+   return prv_aggregate_averaged(metric, app_time_from_time32(time_start),
+                                 app_time_from_time32(time_end), aggregation, scope);
+ }
+diff --git a/pebble/services/activity/activity.c b/pebble/services/activity/activity.c
+index 33c71750c..7caf538e2 100644
+--- a/pebble/services/activity/activity.c
++++ b/pebble/services/activity/activity.c
+@@ -194,7 +194,8 @@ PBL_T_STATIC void prv_hrm_subscription_cb(PebbleHRMEvent *hrm_event, void *conte
+ 
+     // Cache the worn-status from this event so sleep tracking can use it as a strong off-wrist
+     // signal (PPG off-wrist detection is far more reliable than the accel-only heuristics).
+-    activity_metrics_prv_set_hrm_worn_status(now_utc, hrm_event->bpm.off_wrist);
++    activity_metrics_prv_set_hrm_worn_status(now_utc, hrm_event->bpm.off_wrist,
++                                             hrm_event->bpm.bpm, hrm_event->bpm.confidence);
+ 
+     if (hrm_event->bpm.off_wrist) {
+       activity_metrics_prv_set_raw_hr_offwrist(now_utc);
+diff --git a/pebble/services/activity/activity_metrics.c b/pebble/services/activity/activity_metrics.c
+index 1d5651897..a31d10432 100644
+--- a/pebble/services/activity/activity_metrics.c
++++ b/pebble/services/activity/activity_metrics.c
+@@ -113,6 +113,9 @@ void activity_metrics_prv_get_metric_info(ActivityMetric metric, ActivityMetricI
+     case ActivityMetricHeartRateRawBPM:
+       info->value_p = &state->hr.metrics.current_bpm;
+       break;
++    case ActivityMetricDiagnosticPulseSample:
++      info->value_p = &state->hr.diagnostic_sample;
++      break;
+     case ActivityMetricHeartRateRawConfidence:
+       info->value_p = &state->hr.metrics.current_confidence;
+       break;
+@@ -583,10 +586,14 @@ void activity_metrics_prv_reset_hr_stats(void) {
+ }
+ 
+ // --------------------------------------------------------------------------------------------
+-void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist) {
++void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist, uint8_t bpm, uint8_t confidence) {
+   ActivityState *state = activity_private_state();
+   pbl_mutex_lock(&state->mutex, PBL_FOREVER);
+   {
++    // Assign one sequence number per BPM sensor event, including rejected samples.
++    uint32_t seq = ((state->hr.diagnostic_sample >> 16) + 1) & 0x3fff;
++    state->hr.diagnostic_sample = (1u << 30) | (seq << 16) | ((unsigned)is_offwrist << 15)
++                                  | ((unsigned)(confidence & 127) << 8) | bpm;
+     state->hr.last_quality_event_utc = now_utc;
+     state->hr.last_quality_was_offwrist = is_offwrist;
+   }
+diff --git a/pebble/services/blob_db/health_db.c b/pebble/services/blob_db/health_db.c
+index 874fb09fe..fb1f7ac2a 100644
+--- a/pebble/services/blob_db/health_db.c
++++ b/pebble/services/blob_db/health_db.c
+@@ -227,6 +227,7 @@ bool health_db_get_typical_value(ActivityMetric metric, enum pbl_weekday day, in
+     case ActivityMetricSleepStateSeconds:
+     case ActivityMetricLastVMC:
+     case ActivityMetricHeartRateRawBPM:
++    case ActivityMetricDiagnosticPulseSample:
+     case ActivityMetricHeartRateRawConfidence:
+     case ActivityMetricHeartRateRawUpdatedTimeUTC:
+     case ActivityMetricHeartRateFilteredBPM:
+diff --git a/tests/pebble/services/activity/test_activity_algorithm_kraepelin.c b/tests/pebble/services/activity/test_activity_algorithm_kraepelin.c
+index bdf65735d..5065de695 100644
+--- a/tests/pebble/services/activity/test_activity_algorithm_kraepelin.c
++++ b/tests/pebble/services/activity/test_activity_algorithm_kraepelin.c
+@@ -266,7 +266,7 @@ void activity_metrics_prv_reset_hr_stats(void) {
+   s_activity_next_heart_rate_zone = 0;
+ }
+ 
+-void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist) {
++void activity_metrics_prv_set_hrm_worn_status(time_t now_utc, bool is_offwrist, uint8_t bpm, uint8_t confidence) {
+ }
+ 
+ bool activity_metrics_prv_is_hrm_offwrist(time_t now_utc) {

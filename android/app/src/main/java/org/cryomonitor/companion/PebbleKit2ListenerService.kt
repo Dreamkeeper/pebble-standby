@@ -59,6 +59,25 @@ class PebbleKit2ListenerService : BasePebbleListenerService() {
             CmLog.w(TAG, "data log for foreign watchapp $watchappUUID — discarding")
             return ReceiveResult.Ack
         }
+        if (session.tag == Protocol.SHADOW_TAG) {
+            if (session.itemSize == 16 && data.size % 16 == 0) {
+                val buf = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                while (buf.hasRemaining()) {
+                    val start = Integer.toUnsignedLong(buf.int)
+                    val sample = buf.int
+                    val elapsed = buf.short.toInt() and 65535
+                    val kind = buf.get().toInt()
+                    val purpose = buf.get().toInt()
+                    val live = buf.short.toInt() and 65535
+                    val two = buf.short.toInt() and 65535
+                    CmLog.i("PulseShadow", "start=$start t=$elapsed event=$kind purpose=$purpose " +
+                        "seq=${(sample ushr 16) and 16383} bpm=${sample and 255} " +
+                        "conf=${(sample ushr 8) and 127} off=${(sample ushr 15) and 1} " +
+                        "available=${sample ushr 30 == 1} live=$live two=$two")
+                }
+            }
+            return ReceiveResult.Ack
+        }
         if (session.tag != Protocol.DL_TAG) {
             CmLog.w(TAG, "data log with unknown tag 0x%x — discarding".format(session.tag))
             return ReceiveResult.Ack

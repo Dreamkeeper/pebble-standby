@@ -81,6 +81,7 @@ enum {
  * v1 8 bytes under 0xC201; the phone parses all by size). v3 adds the
  * episode id and packs detector into the stage byte high nibble. */
 #define CM_DL_TAG 0xC202
+#define CM_SHADOW_TAG 0xC203
 
 /* MSG_TYPE values for AppMessage to/from the phone. */
 enum {
