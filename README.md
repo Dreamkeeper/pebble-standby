@@ -30,6 +30,18 @@ The [Time 2 pulse-recovery diagnostic](https://github.com/Dreamkeeper/pebble-sta
 
 New builds are published on [GitHub Releases](https://github.com/Dreamkeeper/pebble-standby/releases).
 
+## Screenshots
+
+| Android companion | Watch · quick pause | Watch · alarm countdown |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/android-home.png" width="285" alt="Standby Home shows Covered, Pause monitoring, a connected watch and the Fire drill action"> | <img src="docs/screenshots/watch-pause.png" width="180" alt="Pebble shows Paused 30 min and the centre-button Resume action"> | <img src="docs/screenshots/watch-countdown.png" width="180" alt="Pebble shows one second remaining in an SOS countdown and the I'm OK action"> |
+
+The Android Home screen was captured on a Xiaomi 17 Ultra (0.7.0 build 59). The watch screens are from the Time 2 emulator running 0.5.17. On the watch’s main screen, one short press of **UP** pauses monitoring for 30 minutes.
+
+**Web dashboard.** In this example, one wearer has a fire drill awaiting acknowledgement, another has paused monitoring, and the third wearer’s phone is reporting. The dashboard is running locally with fictional wearer data.
+
+![Standby fleet dashboard showing three wearers, their status, time since the last phone report, battery and active alerts](docs/screenshots/dashboard.png)
+
 ## Components
 
 | Directory | What it is |
@@ -53,11 +65,9 @@ New builds are published on [GitHub Releases](https://github.com/Dreamkeeper/peb
 
 ## Status
 
-**Beta preparation** — the full chain (watch → phone → server →
-Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
-Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
-every stability gate (10,032 worker records, zero false alarms, zero
-heartbeat gaps).
+**UI beta, 25 November 2026.** Watchapp 0.5.17 launched on a physical Pebble Time 2, and Android companion 0.7.0 build 60 was installed on a Xiaomi 17 Ultra. The tagged source includes the matching web dashboard (server 0.3.7). Free worker heap on the physical Time 2 with 0.5.17 still needs measurement.
+
+An earlier seven-day field run recorded 10,032 worker reports, zero false alarms and zero heartbeat gaps. Battery life was about 4.7 days against a seven-day target. These measurements predate the UI beta.
 
 What the field testing taught, each with a fix and a test:
 
@@ -83,17 +93,14 @@ What the field testing taught, each with a fix and a test:
 - **Server hardening** — dead-man race fixes, idempotent alarm intake,
   leased commands, auto-resolve + all-clear when a silent phone
   recovers, per-wearer event isolation.
-- **Upstream PRs** — [coredevices/PebbleOS#1960](https://github.com/coredevices/PebbleOS/pull/1960)
-  (off-wrist HR invalidation) and
-  [coredevices/mobileapp#386](https://github.com/coredevices/mobileapp/pull/386)
-  (third-party DataLogging forwarding — closed upstream in favour of
-  PebbleKit2 data-log delivery: library 1.3.0 plus
-  [coredevices/mobileapp#378](https://github.com/coredevices/mobileapp/pull/378),
-  which the companion now speaks). The [Time 2 field test plan](docs/PULSE-SHADOW-FIELD.md)
-  identifies the firmware build and slot selection procedure for that diagnostic.
-  The stock Pebble app forwards the watch's reports since
-  PebbleKit2 1.3.0; until the first report arrives the companion keeps
-  the watch alive-checked by its hourly sync.
+
+### Upstream support
+
+| Change | Status and effect on Standby |
+|---|---|
+| [PebbleOS #1960](https://github.com/coredevices/PebbleOS/pull/1960) | **Merged into main on 18 November 2026.** When the sensor reports off-wrist, firmware clears the cached raw heart rate and confidence so a watchapp can stop seeing the last on-wrist reading. The [v4.47.3 release source](https://github.com/coredevices/PebbleOS/blob/v4.47.3/pebble/services/activity/activity.c) still uses the earlier callback. |
+| [Pebble mobile app #378](https://github.com/coredevices/mobileapp/pull/378) | **Merged on 17 September 2026.** The Pebble app delivers third-party watch reports to Android companions over PebbleKit 2. Standby uses this path. The change is present in [mobile app tag 1.18.0](https://github.com/coredevices/mobileapp/tree/1.18.0). |
+| [Pebble mobile app #386](https://github.com/coredevices/mobileapp/pull/386) | **Closed without merging.** This was Standby’s earlier proposal to forward reports through classic Android broadcasts. Upstream adopted PebbleKit 2 in #378. |
 
 See [docs/SOAK-TEST.md](docs/SOAK-TEST.md) for the soak protocol and
 [docs/PLAN.md](docs/PLAN.md) for the roadmap, and
@@ -130,8 +137,7 @@ cd server && cp .env.example .env   # set CM_API_TOKEN etc.
 docker compose up -d --build        # API on :8080, ntfy on :8090
 ```
 
-Tests: `watchapp/tests` (host C, gcc/MSVC — 245 checks), `server/tests`
-(pytest — 87 checks), and `android` JVM unit tests (`gradle test`, 36).
+The UI beta has 275 [watch detector checks](watchapp/tests), 55 [Android unit tests](android/app/src/test) and 108 [server tests](server/tests).
 
 Internal identifiers (Android package `org.cryomonitor.companion`,
 server module and container names, the watchapp UUID) deliberately keep
