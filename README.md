@@ -32,11 +32,15 @@ New builds are published on [GitHub Releases](https://github.com/Dreamkeeper/peb
 
 ## Screenshots
 
-| Android companion | Watch · quick pause | Watch · alarm countdown |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/android-home.png" width="285" alt="Standby Home shows Covered, Pause monitoring, a connected watch and the Fire drill action"> | <img src="docs/screenshots/watch-pause.png" width="180" alt="Pebble shows Paused 30 min and the centre-button Resume action"> | <img src="docs/screenshots/watch-countdown.png" width="180" alt="Pebble shows one second remaining in an SOS countdown and the I'm OK action"> |
+**Watchapp 0.5.18 preview** on the Pebble Time 2 emulator. From the main screen, one short press of **Up** pauses monitoring for 30 minutes. Press the middle button to resume.
 
-The Android Home screen was captured on a Xiaomi 17 Ultra (0.7.0 build 59). The watch screens are from the Time 2 emulator running 0.5.17. On the watch’s main screen, one short press of **UP** pauses monitoring for 30 minutes.
+| Monitoring | After one press of Up | SOS countdown |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/watch-home.png" width="200" alt="Monitoring is on. Up pauses for 30 minutes, Middle checks in, and Down opens pause options."> | <img src="docs/screenshots/watch-pause.png" width="200" alt="Paused for 30 minutes. Middle resumes monitoring and Down opens pause options."> | <img src="docs/screenshots/watch-countdown.png" width="200" alt="One second remains in an SOS countdown. The middle button answers I’m OK."> |
+
+**Android companion.** Home on a Xiaomi 17 Ultra (0.7.0 build 59).
+
+<img src="docs/screenshots/android-home.png" width="285" alt="Standby Home shows Covered, Pause monitoring, a connected watch and the Fire drill action">
 
 **Web dashboard.** In this example, one wearer has a fire drill awaiting acknowledgement, another has paused monitoring, and the third wearer’s phone is reporting. The dashboard is running locally with fictional wearer data.
 
