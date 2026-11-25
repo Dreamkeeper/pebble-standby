@@ -18,15 +18,18 @@
     a { color: inherit; }
     table { border-collapse: collapse; width: 100%; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #8883; }
-    .state { font-weight: 700; padding: 2px 8px; border-radius: 6px; }
-    .st-alarm    { background: #b00020; color: #fff; }
-    .st-silent   { background: #d84315; color: #fff; }
-    .st-late     { background: #f9a825; color: #000; }
-    .st-degraded { background: #6a1b9a; color: #fff; }
-    .st-offline  { background: #546e7a; color: #fff; }
-    .st-suspended{ background: #1565c0; color: #fff; }
-    .st-ok       { background: #2e7d32; color: #fff; }
-    .st-disabled { background: #8888; }
+    .state { display: inline-block; margin: 2px 0; font-weight: 650;
+             padding: 3px 8px; border-radius: 6px; }
+    .st-alarm { background: #b00020; color: white; }
+    .st-silent, .st-late, .st-degraded { background: #ffdea6; color: #271900; }
+    .st-offline, .st-suspended, .st-test { background: #d5e3ff; color: #001b3c; }
+    .st-ok { background: #086641; color: white; }
+    .st-disabled { background: #e4e5e7; color: #333538; }
+    @media (prefers-color-scheme: dark) {
+      .st-offline, .st-suspended, .st-test { background: #264777; color: #d5e3ff; }
+      .st-ok { background: #145a3e; color: #e2ffec; }
+      .st-disabled { background: #37393c; color: #eee; }
+    }
     .card { border: 1px solid #8884; border-radius: 8px; padding: 12px 16px;
             margin: 12px 0; }
     .danger { color: #b00020; font-weight: 700; }

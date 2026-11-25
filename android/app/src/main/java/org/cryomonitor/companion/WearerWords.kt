@@ -11,8 +11,8 @@ object WearerWords {
     const val COVERED = "Covered"
     const val PAUSED = "Paused"
     const val NEEDS_ATTENTION = "Needs attention"
-    const val ALARM = "Alarm"
-    const val ALARM_SOON = "Are you OK?"
+    const val ALARM = "Alarm active"
+    const val ALARM_SOON = "Alarm countdown"
     const val NOT_SET_UP = "Not set up"
 
     // Reasons

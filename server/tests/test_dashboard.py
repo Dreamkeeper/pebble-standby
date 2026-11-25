@@ -136,7 +136,18 @@ def test_fleet_sorts_worst_first(appenv_ui):
     page = appenv_ui.client.get("/ui/fragments/fleet")
     assert page.status_code == 200
     assert page.text.index("default") < page.text.index("calm")
-    assert "ESCALATING" in page.text
+    assert "Alarm active" in page.text
+
+
+def test_drill_and_real_alarm_have_separate_badges(appenv_ui):
+    ui_login(appenv_ui.client)
+    for kind in ("test", "watch_alarm"):
+        appenv_ui.client.post("/api/v1/alarm", json={"detector": "impact", "kind": kind},
+                              headers=wearer_headers())
+    for path in ("/ui/fragments/fleet", "/ui/fragments/wearer/default"):
+        page = appenv_ui.client.get(path)
+        assert 'st-test">Fire drill · awaiting acknowledgement' in page.text
+        assert 'st-alarm">Alarm active · awaiting acknowledgement' in page.text
 
 
 def test_wearer_live_fragment_tracks_ack_without_reload(appenv_ui):
@@ -145,13 +156,13 @@ def test_wearer_live_fragment_tracks_ack_without_reload(appenv_ui):
                           headers=wearer_headers())
     frag = appenv_ui.client.get("/ui/fragments/wearer/default")
     assert frag.status_code == 200
-    assert "UNACKNOWLEDGED" in frag.text
+    assert "Awaiting acknowledgement" in frag.text
     esc_id = frag.text.split("<b>")[1].split("</b>")[0]
     r = appenv_ui.client.post(f"/ui/escalations/{esc_id}/ack",
                               data={"csrf": csrf}, follow_redirects=False)
     assert r.status_code == 303
     frag = appenv_ui.client.get("/ui/fragments/wearer/default")
-    assert "UNACKNOWLEDGED" not in frag.text and "acknowledged" in frag.text
+    assert "Awaiting acknowledgement" not in frag.text and "acknowledged" in frag.text
     # the fragment is behind the operator session like every other page
     from fastapi.testclient import TestClient
     anon = TestClient(appenv_ui.client.app)

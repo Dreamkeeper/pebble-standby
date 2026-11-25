@@ -18,7 +18,7 @@ android {
         applicationId = "org.cryomonitor.companion"
         minSdk = 26
         targetSdk = 35
-        versionCode = 58
+        versionCode = 60
         versionName = "0.7.0"
     }
 

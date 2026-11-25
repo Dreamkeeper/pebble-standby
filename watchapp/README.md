@@ -28,8 +28,9 @@ the wearer's alarm clock (needs SDK 4.33+; inactive on Pebble 2 HR).
 | Button | Action |
 |---|---|
 | SELECT | "I'm OK" — check in, cancel an alert, or end a suspension |
-| UP | suspend monitoring: 30 → 60 → 120 min (auto-resumes when worn again) |
+| UP | pause for 30 min immediately (auto-resumes when worn again) |
 | UP (hold) | carry mode: 120 min, timer only |
+| DOWN | choose 30 min, 1 hour, 2 hours or until worn again; BACK leaves the current state in place |
 | DOWN (hold) | manual SOS |
 
 On the charger monitoring holds automatically.

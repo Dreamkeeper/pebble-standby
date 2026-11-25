@@ -93,7 +93,7 @@ git-ignored; without them the release build is unsigned. Unit tests
 policy and worker-record parsing/replay protection; under AGP 9 `test`
 runs the debug variants.
 
-Flavors: `sideload` is what ships in [`../dist/`](../dist/). `play` is
+Flavors: `sideload` is what ships in [GitHub Releases](https://github.com/Dreamkeeper/pebble-standby/releases). `play` is
 the same code reserved for a Play Store listing. SMS/call escalation
 permissions are currently in neither — they trip Play Protect on
 sideloaded builds and will return in a dedicated gateway flavor.

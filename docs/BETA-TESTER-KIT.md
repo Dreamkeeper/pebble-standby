@@ -46,12 +46,13 @@ night. Family first. A standby organisation can be a later tier.
 
 ## 3. Install (about 20 minutes)
 
-1. **Watch.** Open the `.pbw` from `dist/` (latest `standby-v*.pbw`) on
+Choose the current UI beta on [GitHub Releases](https://github.com/Dreamkeeper/pebble-standby/releases). Download both files from its **Assets** section.
+
+1. **Watch.** Open the `.pbw` on
    the phone; the Pebble app offers to install it. Open Standby on the
    watch once. The watchface returns; monitoring runs in the background
    from then on.
-2. **Companion.** Install the latest `standby-companion-*.apk` from
-   `dist/` (allow installs from your browser or file manager when
+2. **Companion.** Install the companion `.apk` from the same release (allow installs from your browser or file manager when
    asked). Open it.
 3. **Enrol.** Enter the server address and the one-time enrolment code
    you were given. The app says "connected". It never shows your token.

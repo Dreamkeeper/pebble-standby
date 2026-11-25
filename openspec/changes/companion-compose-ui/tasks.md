@@ -31,3 +31,6 @@
 - [ ] 11. Owner verification: fresh install on the phone through
         onboarding to Covered with a real drill; a night test; a week
         of daily use with the new Home.
+
+- [x] 12. Apply approved Home and Settings colours and native type sizes for physical preview.
+- [x] 13. Inspect Home and Settings on the Xiaomi at its actual font and display sizes. Build 59, 400 dp width, 110% font, dark mode. All three Home cards and all detector controls fit. Hard impact wraps to two lines. Owner accepted the text size on the physical Xiaomi.

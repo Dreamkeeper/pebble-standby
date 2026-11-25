@@ -1,6 +1,6 @@
 <div class="card">
   {% for s in states %}<span class="state st-{{ s.css }}">{{ s.label }}</span> {% endfor %}
-  <p class="muted">Last heartbeat: {{ last_hb }} · phone battery:
+  <p class="muted">Last phone report: {{ last_hb }} · phone battery:
      {{ battery if battery is not none else "—" }}%</p>
   <p>Battery trail (48 h):
     {% for p in trail %}<span class="bar" title="phone {{ p.battery }}%{% if p.watch_battery is not none %} · watch {{ p.watch_battery }}%{% endif %}"
@@ -8,13 +8,13 @@
   </p>
 </div>
 
-<h3>Active escalations</h3>
+<h3>Active alerts</h3>
 {% if not active %}<p class="muted">None.</p>{% endif %}
 {% for e in active %}
 <div class="card">
   <b>{{ e.id }}</b> — {{ e.kind }} / {{ e.detector }}
   {% if e.any_ack %}<span class="state st-ok">acknowledged</span>
-  {% else %}<span class="state st-alarm">UNACKNOWLEDGED</span>{% endif %}
+  {% else %}<span class="state st-{{ e.css }}">Awaiting acknowledgement</span>{% endif %}
   <p class="muted">started {{ e.started }}</p>
   <form class="inline" method="post" action="/ui/escalations/{{ e.id }}/ack">
     <input type="hidden" name="csrf" value="{{ op.csrf }}">

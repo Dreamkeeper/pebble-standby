@@ -1,0 +1,2 @@
+# Interaction
+The main watch window keeps a fixed 30-minute UP shortcut. DOWN opens a native menu. Long presses on Home retain carry and SOS. Alert windows have one middle-button action and retain retry feedback until an answer arrives or the retries expire. The time display uses the worker’s existing stage duration. Operators see phone reporting as distinct from the phone’s end-to-end coverage verdict. Semantic colour is paired with text, including on monochrome watches.

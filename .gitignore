@@ -40,9 +40,8 @@ secrets.*
 config.local.*
 watchapp/tests/*.obj
 
-# Built artifacts are ignored everywhere except dist/
-!dist/*.pbw
-!dist/*.apk
+# New release binaries are staged locally and uploaded to GitHub Releases.
+/dist/
 watchapp/.lock-waf*
 tokens.txt
 

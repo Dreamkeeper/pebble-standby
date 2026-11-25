@@ -7,7 +7,7 @@ package org.cryomonitor.companion
  * ongoing notification and the Diagnostics card all render the same
  * verdict, so they can never disagree.
  */
-enum class Coverage { ALARM, CHECK_IN, NOT_SET_UP, NEEDS_ATTENTION, PAUSED, COVERED }
+enum class Coverage { ALARM, COUNTDOWN, NOT_SET_UP, NEEDS_ATTENTION, PAUSED, COVERED }
 
 /** What the single action on the verdict card does. */
 enum class CoverageAction {
@@ -55,13 +55,13 @@ object CoverageState {
     const val WORKER_STALE_MS = Protocol.WORKER_SILENT_AFTER_S * 1000L
 
     fun compute(f: CoverageFacts, nowMs: Long): CoverageVerdict {
-        // Precedence (spec): Alarm, Check-in, Not set up, Needs attention, Paused, Covered.
+        // Precedence (spec): Alarm, Countdown, Not set up, Needs attention, Paused, Covered.
         if (f.alertStage >= 2) return CoverageVerdict(
             Coverage.ALARM, WearerWords.ALARM,
             WearerWords.alarmReason(f.alertDetector),
             CoverageAction.CANCEL_ALARM, WearerWords.ACTION_IM_OK)
         if (f.alertStage == 1) return CoverageVerdict(
-            Coverage.CHECK_IN, WearerWords.ALARM_SOON,
+            Coverage.COUNTDOWN, WearerWords.ALARM_SOON,
             WearerWords.alarmReason(f.alertDetector),
             CoverageAction.CANCEL_ALARM, WearerWords.ACTION_IM_OK)
 

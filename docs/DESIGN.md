@@ -70,8 +70,8 @@ phone, in notifications, in Telegram texts and on the dashboard.
 | State | Meaning | Watch | Phone / web colour role | Word |
 |---|---|---|---|---|
 | **Covered** | Monitoring, watch linked, contacts exist, server fine | green background, time, "Monitoring" | `primary` container (green-tinted in the brand theme) | "Covered" |
-| **Paused** | Suspended, carry mode, on charger | neutral background, "Suspended 30 min" / "Charging" | `tertiary` container (calm blue) | "Paused · charging" / "Paused · 23 min left" |
-| **Needs attention** | Not worn, no pulse signal while moving, watch link lost, server unreachable, no contacts | neutral, hint text | custom `caution` token (amber), never red | "Needs attention" + one line + one action |
+| **Paused** | Suspended, carry mode, on charger | blue background, "Paused" and remaining time or charging | `tertiary` container (calm blue) | "Paused · charging" / "Paused · 23 min left" |
+| **Needs attention** | Not worn, no pulse signal while moving, watch link lost, server unreachable, no contacts | amber, hint text | custom `caution` token (amber), never red | "Needs attention" + one line + one action |
 | **Check-in** | "Are you OK?" stage | amber | `caution` | "Are you OK?" |
 | **Countdown / Alarm** | Countdown running or alarm latched | red | `error` | "Alarm in 20 s" / "Alarm" |
 | **Off** | Monitoring disabled or not set up | grey | `surfaceVariant` | "Not set up" |
@@ -107,6 +107,8 @@ cardiac arrest or anything medical. "Pulse *signal*" everywhere, and the
 loose-strap ambiguity appears wherever detection quality is described.
 
 ### 3.3 Type and layout
+
+For the approved Android Home and Settings preview (2026-11-25), keep coverage colours independent of wallpaper. Use a forest-green Covered card, a blue tonal Pause button, plum for people and blue for server navigation. Settings uses lightly tinted section headings, teal enabled switches, and explicit state text. Use a 24 sp Home verdict, 16 sp row titles and 14 sp supporting text at default font scale. Respect Android font scaling and keep full-size touch targets. Verify perceived size on the Xiaomi.
 
 Material 3 type scale as already adopted; the Compose rebuild keeps the
 4 dp grid and 16/24 dp rhythm. Two exceptions set deliberately:
@@ -297,11 +299,7 @@ notifications and in Diagnostics.
 
 ## 5. Watch
 
-No layout change in this pass; two alignments. Words follow §3.2 exactly
-("Alarm in 18 s" during the countdown instead of a bare number where
-space allows; "Watch not worn?"). Colours follow §3.1 (already green /
-amber / red; "Paused" neutral). The hint line gains the suspension
-remaining time where it does not already show it.
+On the main watch screen, a single short UP pauses for 30 minutes, including after a previous longer pause. DOWN opens the duration menu. Long UP starts carry mode and long DOWN starts SOS. The status bar shows the time. Green Monitoring describes the local worker, blue Paused gives the cause or time remaining, and amber prompts name the problem. During a check-in or alarm, the middle button answers. The screen retains cancellation feedback during retries. Countdown and active alarm are red on watch and phone. The dashboard distinguishes a watch alarm from an advisory or drill and reports the phone link separately from coverage.
 
 ---
 

@@ -38,6 +38,11 @@ Alarm; "Needs attention" and Check-in SHALL use the theme's caution
 token; Paused the tertiary role; Covered the primary role. No text
 SHALL claim detection of cardiac arrest or any medical condition.
 
+#### Scenario: Wallpaper and text size on the wearer’s phone
+- **WHEN** the wearer opens Home or Settings with wallpaper colours and system font scaling enabled
+- **THEN** the coverage card retains its semantic hue and written verdict, Pause uses a blue tonal button, and Settings shows readable current values with a lightly tinted section heading
+- **AND** the 24 sp verdict, 16 sp row titles and 14 sp supporting text scale with Android font preferences
+
 #### Scenario: A string audit passes
 - **WHEN** the wearer-facing string resources and notification texts
   are scanned for the jargon list

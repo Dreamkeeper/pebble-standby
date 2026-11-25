@@ -22,6 +22,14 @@ an Android companion app, and an optional self-hosted server.
 > confirmation ladder exists precisely because the two are indistinguishable
 > at the sensor. Treat it as a personal alarm, not a monitor of record.
 
+## Downloads
+
+Start with the [Standby UI beta](https://github.com/Dreamkeeper/pebble-standby/releases/tag/standby-2026.11.25-beta.1). Install the watchapp **0.5.17** (`.pbw`) and Android companion **0.7.0, build 60** (`.apk`) from the same release. This UI update works with your existing Standby firmware. See the [beta installation guide](docs/BETA-TESTER-KIT.md).
+
+The [Time 2 pulse-recovery diagnostic](https://github.com/Dreamkeeper/pebble-standby/releases/tag/pulse-shadow-2026-11-12) is an archived field trial. Its watchapp left only 192 B of free worker heap on the test watch. The [0.5.15 rollback watchapp](https://raw.githubusercontent.com/Dreamkeeper/pebble-standby/3fe9b0c4fcc0565c8895ed8f7ede4c3bb0f18d12/dist/standby-v0.5.15.pbw) restored 896 B on that device.
+
+New builds are published on [GitHub Releases](https://github.com/Dreamkeeper/pebble-standby/releases).
+
 ## Components
 
 | Directory | What it is |
@@ -32,7 +40,7 @@ an Android companion app, and an optional self-hosted server.
 | [`docs/`](docs/) | Product plan, soak-test protocol, deployment guides ([VPS](docs/DEPLOY-VPS.md), [Synology](docs/DEPLOY-SYNOLOGY.md)), [Telegram bot setup](docs/TELEGRAM-BOT.md), review/optimization records, upstream-PR docs. |
 | [`openspec/`](openspec/) | Living specs ([OpenSpec](https://github.com/Fission-AI/openspec)): product requirements, detector ladder, watch↔phone protocol, escalation/dead-man, suspension, companion resilience. Changes flow through `/opsx:propose` → `/opsx:apply` → `/opsx:archive`. |
 | [`tools/`](tools/) | `worker_log_timeline.py`: rebuilds the watch worker's per-minute timeline from shared companion logs, for post-mortems without ADB. `quiet_record.py`: the per-wearer quiet record (days and nights watched, questions, countdowns, alarms, alarms sent to contacts) from the same logs; see [docs/BETA-TESTER-KIT.md](docs/BETA-TESTER-KIT.md). |
-| [`dist/`](dist/) | Current sideload artifacts: watchapp `.pbw`, companion `.apk`, and the dual-slot test firmware `.pbz` for Pebble Time 2. |
+| [`dist/`](dist/) | Earlier sideload builds retained for existing download links. |
 
 ## Design lineage
 
@@ -49,8 +57,7 @@ an Android companion app, and an optional self-hosted server.
 Telegram/ntfy) has run 24/7 on real hardware since August 2026: Pebble
 Time 2, Android 16 phone, self-hosted server. A seven-day soak passed
 every stability gate (10,032 worker records, zero false alarms, zero
-heartbeat gaps). Current builds: watchapp **0.5.9**, companion
-**0.6.8**, all in [`dist/`](dist/).
+heartbeat gaps).
 
 What the field testing taught, each with a fix and a test:
 
@@ -82,14 +89,8 @@ What the field testing taught, each with a fix and a test:
   (third-party DataLogging forwarding — closed upstream in favour of
   PebbleKit2 data-log delivery: library 1.3.0 plus
   [coredevices/mobileapp#378](https://github.com/coredevices/mobileapp/pull/378),
-  which the companion now speaks). Until those land, [`dist/`](dist/)
-  carries a patched PebbleOS build for the Time 2, one bundle per firmware
-  slot. With the watch running normally, sideload the slot 0 file first; if
-  the Pebble app refuses it ("slot does not match"), use the slot 1 file.
-  Never sideload from the recovery (QR) screen without knowing the slot: the
-  app skips that check there (field 2026-10-24). The build is:
-  upstream v4.42.0 plus the raw-HR off-wrist invalidation (PR #1960), the
-  raw HR-quality diagnostic metric, and the worker vibration-history fix.
+  which the companion now speaks). The [Time 2 field test plan](docs/PULSE-SHADOW-FIELD.md)
+  identifies the firmware build and slot selection procedure for that diagnostic.
   The stock Pebble app forwards the watch's reports since
   PebbleKit2 1.3.0; until the first report arrives the companion keeps
   the watch alive-checked by its hourly sync.

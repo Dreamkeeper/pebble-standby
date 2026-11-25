@@ -224,7 +224,7 @@ def test_non_finite_suspended_until_is_rejected_and_tolerated(appenv_ui):
     assert appenv_ui.client.get("/ui/").status_code == 200
     assert appenv_ui.client.get("/ui/wearers/default").status_code == 200
     appenv_ui.store.set_suspended_until("default", time.time() + 3600)
-    assert "suspended 59m" in appenv_ui.client.get("/ui/").text
+    assert "Paused · 59 min left" in appenv_ui.client.get("/ui/").text
     assert csrf
 
 

@@ -8,6 +8,7 @@ Imports of runtime state (escalations, monitors) happen lazily via
 """
 from __future__ import annotations
 
+from collections import Counter
 import asyncio
 import math
 import os
@@ -56,6 +57,14 @@ def _fmt(t: float | None) -> str:
 
 # ---- state model: worst first ----
 
+ALERT_BADGES = {
+    AlertKind.WATCH_ALARM: ("alarm", "Alarm active"),
+    AlertKind.PHONE_SILENT: ("silent", "Phone silent alert"),
+    AlertKind.FAULT: ("degraded", "Needs attention"),
+    AlertKind.TEST: ("test", "Fire drill"),
+}
+
+
 def wearer_states(w: dict) -> tuple[int, list[dict]]:
     """(badness score, [{css,label}]) — higher score sorts first."""
     rt = _rt()
@@ -64,45 +73,46 @@ def wearer_states(w: dict) -> tuple[int, list[dict]]:
     if not w["enabled"]:
         return 0, [{"css": "disabled", "label": "disabled"}]
 
-    unacked = acked = 0
-    for eid, (ewid, esc) in rt.escalations.items():
-        if ewid == wid and not esc.resolved:
-            if esc.any_ack: acked += 1
-            else: unacked += 1
-    if unacked:
-        states.append({"css": "alarm", "label": f"ESCALATING ×{unacked}"})
-        score = max(score, 100)
-    if acked:
-        states.append({"css": "late", "label": f"escalation acked ×{acked}"})
-        score = max(score, 60)
+    active = Counter((esc.kind, esc.any_ack) for ewid, esc in rt.escalations.values()
+                     if ewid == wid and not esc.resolved)
+    for acknowledged in (False, True):
+        for kind, (css, label) in ALERT_BADGES.items():
+            count = active[kind, acknowledged]
+            if count:
+                receipt = "acknowledged" if acknowledged else "awaiting acknowledgement"
+                states.append({"css": css, "label": f"{label} · {receipt} ×{count}"})
+                score = max(score, 60 if acknowledged else 100)
 
     m = rt.get_monitor(wid)
     st = m.evaluate(time.time())
     if st == PhoneState.SILENT:
-        states.append({"css": "silent", "label": "phone SILENT"})
+        states.append({"css": "silent", "label": "Needs attention · phone silent"})
         score = max(score, 90)
     elif st == PhoneState.LATE:
-        states.append({"css": "late", "label": "phone late"})
+        states.append({"css": "late", "label": "Needs attention · phone late"})
         score = max(score, 50)
     elif st == PhoneState.OFFLINE_DECLARED:
         left = int(((m.offline_until_t or 0) - time.time()) / 60)
         states.append({"css": "offline",
-                       "label": f"paused by wearer · {left // 60}h {left % 60:02d}m left"})
+                       "label": f"Paused by wearer · {left // 60}h {left % 60:02d}m left"})
         score = max(score, 20)
 
     from .wearers import wearer_degraded
     if wearer_degraded(wid):
-        states.append({"css": "degraded", "label": "DEGRADED (no contacts)"})
+        states.append({"css": "degraded", "label": "Needs attention · no contacts"})
         score = max(score, 70)
 
     susp = db.get_suspended_until(wid)
     if susp and math.isfinite(susp) and susp > time.time():
         states.append({"css": "suspended",
-                       "label": f"suspended {int((susp - time.time()) / 60)}m"})
+                       "label": f"Paused · {int((susp - time.time()) / 60)} min left"})
         score = max(score, 30)
 
     if not states:
-        states.append({"css": "ok", "label": "OK"})
+        if m.last_heartbeat_t is None:
+            states.append({"css": "disabled", "label": "Awaiting first phone report"})
+        else:
+            states.append({"css": "ok", "label": "Phone reporting"})
     return score, states
 
 
@@ -207,7 +217,8 @@ def _render_wearer(request: Request, op: ops.Operator, wid: str,
     _score, states = wearer_states(w)
     m = rt.get_monitor(wid)
     trail = db.heartbeat_trail(wid)
-    active = [{"id": eid, "kind": e.kind.value, "detector": e.detector,
+    active = [{"id": eid, "kind": ALERT_BADGES[e.kind][1], "css": ALERT_BADGES[e.kind][0],
+               "detector": e.detector,
                "any_ack": e.any_ack, "started": _fmt(e.started_t)}
               for eid, (ewid, e) in rt.escalations.items()
               if ewid == wid and not e.resolved]
@@ -256,7 +267,8 @@ def wearer_fragment(request: Request, wid: str):
     _score, states = wearer_states(w)
     m = rt.get_monitor(wid)
     trail = db.heartbeat_trail(wid)
-    active = [{"id": eid, "kind": e.kind.value, "detector": e.detector,
+    active = [{"id": eid, "kind": ALERT_BADGES[e.kind][1], "css": ALERT_BADGES[e.kind][0],
+               "detector": e.detector,
                "any_ack": e.any_ack, "started": _fmt(e.started_t)}
               for eid, (ewid, e) in rt.escalations.items()
               if ewid == wid and not e.resolved]

@@ -41,12 +41,21 @@ static uint16_t s_nag_hold_ticks;
 #define CM_NAG_HOLD_S 180
 
 static const char *HINTS_TEXT =
-    "SELECT check-in/resume\nUP suspend (hold: carry)\nDOWN hold SOS";
+    "UP 30m   DOWN menu\nHold UP carry / DOWN SOS";
+static const char *PAUSE_HINT = "Middle: resume\nDOWN: pause menu";
+static Window *s_pause_window;
+static void close_pause_menu(void);
+static bool s_watch_charging;
+static bool s_watch_paused;
+static void render_idle(void);
+static void main_colors(GColor bg, GColor fg);
+
 
 static Window *s_alert_window;
 static TextLayer *s_alert_title;
 static TextLayer *s_alert_count;   /* dominant countdown numerals */
 static TextLayer *s_alert_body;
+static TextLayer *s_alert_cause;
 static char s_alert_count_buf[8];
 static AppTimer *s_alert_timer;
 static cm_action s_alert_action;
@@ -82,6 +91,7 @@ static uint16_t s_dbg_status_d1; /* bpm|heap from the last WMSG_STATUS */
 /* Debug telemetry gets its own mid-screen layer so the button hints stay
  * visible (owner request: keep the tooltips even in debug mode). */
 static TextLayer *s_diag_layer;
+static TextLayer *s_middle_cue;
 static char s_diag_buf[64];
 
 static uint32_t app_now_ms(void) {
@@ -152,6 +162,8 @@ static void clear_pending_alarm(void) {
 
 static void set_debug(uint8_t on) {
   s_debug = on;
+  layer_set_hidden(text_layer_get_layer(s_diag_layer), !on);
+  render_idle();
   persist_write_int(PK_DEBUG, on);
   AppWorkerMessage m = {.data0 = on};
   app_worker_send_message(WMSG_SET_DEBUG, &m);
@@ -233,12 +245,12 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       AppWorkerMessage m = {.data0 = mode};
       app_worker_send_message(WMSG_HR_LAB, &m);
       if (on) {
+        layer_set_hidden(text_layer_get_layer(s_middle_cue), true);
         text_layer_set_text(s_status_layer, "Sensor lab");
         text_layer_set_text(s_detail_layer,
                             "Follow the phone's\ninstructions");
       } else {
-        text_layer_set_text(s_status_layer, "Monitoring");
-        text_layer_set_text(s_detail_layer, HINTS_TEXT);
+        render_idle();
         /* auto-launch guard takes the screen back on the next poll */
       }
       APP_LOG(APP_LOG_LEVEL_INFO, "sensor lab %s", on ? "ON" : "off");
@@ -295,18 +307,21 @@ static void alert_vibe(void) {
   }
 }
 
+static void alert_time_text(void) {
+  if (s_alert_action.type == CM_ACT_ALARM) {
+    text_layer_set_text(s_alert_count, "");
+  } else {
+    snprintf(s_alert_count_buf, sizeof(s_alert_count_buf), "%u s", (unsigned)s_alert_seconds_left);
+    text_layer_set_text(s_alert_count, s_alert_count_buf);
+  }
+}
+
 static void alert_tick(void *data) {
   s_alert_timer = NULL;
   if (!s_alert_window) return;
 
   if (s_alert_seconds_left > 0) s_alert_seconds_left--;
-  snprintf(s_alert_count_buf, sizeof(s_alert_count_buf), "%u",
-           (unsigned)s_alert_seconds_left);
-  text_layer_set_text(s_alert_count, s_alert_count_buf);
-  text_layer_set_text(s_alert_body,
-                      s_alert_action.type == CM_ACT_COUNTDOWN_START
-                          ? "SELECT if you are OK"
-                          : "Are you OK? Press SELECT");
+  alert_time_text();
 
   /* escalate vibration every few seconds; the core decides stage changes */
   if (s_alert_seconds_left % 5 == 0) alert_vibe();
@@ -327,7 +342,11 @@ static void alert_apply_style(void) {
   GColor fg = GColorBlack;
 #endif
   window_set_background_color(s_alert_window, bg);
-  TextLayer *layers[] = {s_alert_title, s_alert_count, s_alert_body};
+  text_layer_set_text(s_alert_title, s_alert_action.type == CM_ACT_ALARM ? "Alarm active" :
+                      s_alert_action.type == CM_ACT_COUNTDOWN_START ? "Alarm in" : "Are you OK?");
+  text_layer_set_text(s_alert_cause, detector_name(s_alert_action.detector));
+  alert_time_text();
+  TextLayer *layers[] = {s_alert_title, s_alert_count, s_alert_body, s_alert_cause};
   for (unsigned i = 0; i < ARRAY_LENGTH(layers); i++) {
     text_layer_set_background_color(layers[i], GColorClear);
     text_layer_set_text_color(layers[i], fg);
@@ -341,7 +360,7 @@ static void cancel_retry_cb(void *ctx) {
   s_cancel_timer = NULL;
   if (!s_alert_window) { s_cancel_attempts = 0; return; } /* echo arrived */
   if (s_cancel_attempts >= 5) {
-    text_layer_set_text(s_alert_body, "CANCEL FAILED\nPress again");
+    text_layer_set_text(s_alert_body, "Press middle again >");
     s_cancel_attempts = 0;
     return;
   }
@@ -373,33 +392,33 @@ static void alert_click_config(void *ctx) {
 static void alert_window_load(Window *w) {
   Layer *root = window_get_root_layer(w);
   GRect b = layer_get_bounds(root);
-  /* guideline hierarchy: 28pt title, dominant numeric countdown, 18pt hint */
-  s_alert_title = text_layer_create(GRect(0, 4, b.size.w, 62));
-  text_layer_set_font(s_alert_title,
-                      fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
-  text_layer_set_text_alignment(s_alert_title, GTextAlignmentCenter);
-  text_layer_set_text(s_alert_title, detector_name(s_alert_action.detector));
-  layer_add_child(root, text_layer_get_layer(s_alert_title));
-
-  s_alert_count = text_layer_create(GRect(0, b.size.h / 2 - 24, b.size.w, 52));
-  text_layer_set_font(s_alert_count,
-                      fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS));
-  text_layer_set_text_alignment(s_alert_count, GTextAlignmentCenter);
-  layer_add_child(root, text_layer_get_layer(s_alert_count));
-
-  s_alert_body = text_layer_create(GRect(0, b.size.h - 46, b.size.w, 42));
-  text_layer_set_font(s_alert_body, fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  text_layer_set_text_alignment(s_alert_body, GTextAlignmentCenter);
-  layer_add_child(root, text_layer_get_layer(s_alert_body));
-
-  alert_apply_style();
+  int w_px = b.size.w, h = b.size.h;
+  int edge = PBL_IF_ROUND_ELSE(18, 4);
+  s_alert_title = text_layer_create(GRect(edge, h / 10 - 6, w_px - 2 * edge, 36));
+  s_alert_count = text_layer_create(GRect(edge, h / 10 + 27, w_px - 2 * edge, 42));
+  s_alert_body = text_layer_create(GRect(3, h / 2 - 11, w_px - 9, 31));
+  s_alert_cause = text_layer_create(GRect(edge, h * 2 / 3, w_px - 2 * edge, 48));
+  TextLayer *layers[] = {s_alert_title, s_alert_count, s_alert_body, s_alert_cause};
+  const char *fonts[] = {FONT_KEY_GOTHIC_28_BOLD, FONT_KEY_BITHAM_30_BLACK,
+                         FONT_KEY_GOTHIC_18_BOLD, FONT_KEY_GOTHIC_18};
+  for (unsigned i = 0; i < ARRAY_LENGTH(layers); i++) {
+    text_layer_set_font(layers[i], fonts_get_system_font(fonts[i]));
+    text_layer_set_text_alignment(layers[i], layers[i] == s_alert_body ?
+                                  GTextAlignmentRight : GTextAlignmentCenter);
+    layer_add_child(root, text_layer_get_layer(layers[i]));
+  }
+  text_layer_set_text(s_alert_body, "I'm OK >");
   s_alert_seconds_left = s_alert_action.seconds;
+  alert_apply_style();
   alert_vibe();
-  alert_tick(NULL);
+  s_alert_timer = app_timer_register(1000, alert_tick, NULL);
 }
 
 static void alert_window_unload(Window *w) {
   if (s_alert_timer) { app_timer_cancel(s_alert_timer); s_alert_timer = NULL; }
+  if (s_cancel_timer) { app_timer_cancel(s_cancel_timer); s_cancel_timer = NULL; }
+  s_cancel_attempts = 0;
+  text_layer_destroy(s_alert_cause);
   text_layer_destroy(s_alert_title);
   text_layer_destroy(s_alert_count);
   text_layer_destroy(s_alert_body);
@@ -422,6 +441,7 @@ static void show_alert(const cm_action *a) {
     if (s_auto_launched) window_stack_pop_all(false);
     return;
   }
+  close_pause_menu();
   if (!s_alert_window) {
     s_alert_window = window_create();
     window_set_click_config_provider(s_alert_window, alert_click_config);
@@ -430,8 +450,46 @@ static void show_alert(const cm_action *a) {
     window_stack_push(s_alert_window, true);
   } else {
     s_alert_seconds_left = a->seconds;
-    text_layer_set_text(s_alert_title, detector_name(a->detector));
     alert_apply_style();  /* stage may have escalated: amber -> red */
+  }
+}
+
+static void main_colors(GColor bg, GColor fg) {
+#if !defined(PBL_COLOR)
+  bg = GColorWhite;
+  fg = GColorBlack;
+#endif
+  window_set_background_color(s_main_window, bg);
+  status_bar_layer_set_colors(s_status_bar, bg, fg);
+  text_layer_set_text_color(s_status_layer, fg);
+  text_layer_set_text_color(s_detail_layer, fg);
+  text_layer_set_text_color(s_diag_layer, fg);
+  text_layer_set_text_color(s_middle_cue, fg);
+}
+
+static uint16_t s_pause_minutes;
+static void render_idle(void) {
+  if (s_lab_hold || s_nag_hold || s_drill_hold_ticks) return;
+  layer_set_hidden(text_layer_get_layer(s_middle_cue), s_debug || s_watch_charging);
+  text_layer_set_text(s_middle_cue, s_watch_paused ? "Resume >" : "Check in >");
+  if (s_watch_charging || s_watch_paused) {
+    main_colors(PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorWhite), GColorWhite);
+    if (s_watch_charging) {
+      text_layer_set_text(s_status_layer, "Paused");
+      text_layer_set_text(s_detail_layer, "Charging");
+    } else {
+      if (s_pause_minutes >= 255)
+        snprintf(s_status_buf, sizeof(s_status_buf), "Paused");
+      else
+        snprintf(s_status_buf, sizeof(s_status_buf), "Paused %u min", (unsigned)s_pause_minutes);
+      text_layer_set_text(s_status_layer, s_status_buf);
+      text_layer_set_text(s_detail_layer, s_debug ? PAUSE_HINT : "DOWN: pause menu");
+    }
+  } else {
+    main_colors(PBL_IF_COLOR_ELSE(GColorDarkGreen, GColorWhite), GColorWhite);
+    text_layer_set_text(s_status_layer, "Monitoring");
+    text_layer_set_text(s_detail_layer, s_debug ?
+        "Middle: check in\nUP 30m   DOWN menu\nHold UP carry / DOWN SOS" : HINTS_TEXT);
   }
 }
 
@@ -445,20 +503,26 @@ static void handle_action(const cm_action *a) {
       show_alert(a);
       break;
     case CM_ACT_NOTWORN_NAG:
+      close_pause_menu();
+      layer_set_hidden(text_layer_get_layer(s_middle_cue), true);
+      main_colors(PBL_IF_COLOR_ELSE(GColorChromeYellow, GColorWhite), GColorBlack);
       s_nag_hold = true;
       s_nag_hold_ticks = CM_NAG_HOLD_S;
       buzz_double();
       text_layer_set_text(s_status_layer, "Not worn?");
-      text_layer_set_text(s_detail_layer, "Re-wear the watch,\nor UP to suspend");
+      text_layer_set_text(s_detail_layer, "Put the watch on\nor UP: pause 30m");
       send_to_phone(PMSG_NOTWORN, a);
       break;
     case CM_ACT_SENSOR_FAULT:
+      close_pause_menu();
+      layer_set_hidden(text_layer_get_layer(s_middle_cue), true);
+      main_colors(PBL_IF_COLOR_ELSE(GColorChromeYellow, GColorWhite), GColorBlack);
       s_nag_hold = true;
       s_nag_hold_ticks = CM_NAG_HOLD_S;
       buzz_double();
       text_layer_set_text(s_status_layer, "No pulse signal");
       text_layer_set_text(s_detail_layer,
-                          "Sensor dead, or carried\noff-wrist? Reboot the\nwatch, or UP to suspend");
+                          "Check the strap\nor UP: pause 30m");
       send_to_phone(PMSG_SENSOR_FAULT, a);
       break;
     case CM_ACT_CHECKIN_REMINDER:
@@ -495,33 +559,27 @@ static void handle_action(const cm_action *a) {
       break;
     }
     case CM_ACT_SUSPEND_STARTED:
-      if (a->seconds / 60u >= CM_UNTIL_WORN_MIN)
-        snprintf(s_status_buf, sizeof(s_status_buf), "Until worn again");
-      else
-        snprintf(s_status_buf, sizeof(s_status_buf), "Suspended %u min",
-                 (unsigned)(a->seconds / 60u));
-      text_layer_set_text(s_status_layer, s_status_buf);
+      s_watch_paused = true;
+      s_pause_minutes = a->seconds / 60u;
+      s_nag_hold = false;
+      render_idle();
       send_to_phone(PMSG_SUSPENDED, a); /* SECONDS = duration */
       break;
     case CM_ACT_SUSPEND_EXPIRED:
     case CM_ACT_AUTO_RESUMED:
       buzz_double();
+      s_watch_paused = false;
       s_nag_hold = false;
-      text_layer_set_text(s_status_layer, "Monitoring");
-      text_layer_set_text(s_detail_layer, HINTS_TEXT);
-      send_to_phone(PMSG_SUSPENDED, a); /* SECONDS = 0 -> ended */
+      render_idle();
+      send_to_phone(PMSG_SUSPENDED, a);
       break;
     case CM_ACT_CHARGING_STARTED:
-      s_nag_hold = false; /* on the charger IS the answer to "not worn?" */
-      text_layer_set_text(s_status_layer, "Charging");
-      text_layer_set_text(s_detail_layer, "Monitoring paused\nwhile on charger");
-      send_to_phone(PMSG_CHARGING, a); /* SECONDS = 1 */
-      break;
     case CM_ACT_CHARGING_ENDED:
-      buzz_short();
-      text_layer_set_text(s_status_layer, "Monitoring");
-      text_layer_set_text(s_detail_layer, HINTS_TEXT);
-      send_to_phone(PMSG_CHARGING, a); /* SECONDS = 0 */
+      if (a->type == CM_ACT_CHARGING_ENDED) buzz_short();
+      s_watch_charging = a->type == CM_ACT_CHARGING_STARTED;
+      s_nag_hold = false;
+      render_idle();
+      send_to_phone(PMSG_CHARGING, a);
       break;
     default: break;
   }
@@ -627,16 +685,11 @@ static void worker_message_handler(uint16_t type, AppWorkerMessage *m) {
     /* Keep the big status line truthful: the worker owns the state, the
      * app just displays it (a stale "Suspended 30 min" after auto-resume
      * was exactly the failure mode this prevents). */
-    if (!s_nag_hold && !s_lab_hold) {
-      if (stage == CM_STAGE_NONE && low > 0) {
-        snprintf(s_status_buf, sizeof(s_status_buf), "Suspended %u min",
-                 (unsigned)low);
-        text_layer_set_text(s_status_layer, s_status_buf);
-      } else if (charging) {
-        text_layer_set_text(s_status_layer, "Charging");
-      } else if (stage == CM_STAGE_NONE) {
-        text_layer_set_text(s_status_layer, "Monitoring");
-      }
+    s_watch_charging = charging != 0;
+    if (stage == CM_STAGE_NONE) {
+      s_watch_paused = low != 0;
+      s_pause_minutes = low;
+      render_idle();
     }
     /* Reconciliation (hardening D4): an active ladder stage with no
      * alert window means a lost handoff — rebuild the UI and re-notify
@@ -683,24 +736,53 @@ static void suspend_minutes(uint16_t minutes, bool auto_resume) {
   text_layer_set_text(s_detail_layer, HINTS_TEXT);
   AppWorkerMessage m = {.data0 = minutes, .data1 = auto_resume ? 1 : 0};
   app_worker_send_message(WMSG_SUSPEND, &m);
-  /* label confirmed by the worker's SUSPEND_STARTED action + status polls */
-  if (auto_resume && minutes >= CM_UNTIL_WORN_MIN)
-    snprintf(s_status_buf, sizeof(s_status_buf), "Until worn again");
-  else
-    snprintf(s_status_buf, sizeof(s_status_buf),
-             auto_resume ? "Suspended %u min" : "Carry %u min", minutes);
-  text_layer_set_text(s_status_layer, s_status_buf);
+  text_layer_set_text(s_status_layer, "Pausing...");
 }
 
-/* TODO(M1): replace with a real MenuLayer incl. custom duration.
- * Skeleton: UP cycles presets. */
+/* A short UP always means the same thing, including after a menu pause. */
 static void up_click(ClickRecognizerRef ref, void *ctx) {
-  /* The fourth preset is "until worn again": a day without the watch
-   * (planned-pause); wear evidence or SELECT ends it, 14 h at most. */
-  static const uint16_t presets[] = {30, 60, 120, CM_UNTIL_WORN_MIN};
-  static int idx = 0;
-  suspend_minutes(presets[idx], true);
-  idx = (idx + 1) % 4;
+  suspend_minutes(30, true);
+}
+
+static SimpleMenuLayer *s_pause_menu;
+static void close_pause_menu(void) {
+  if (s_pause_window) window_stack_remove(s_pause_window, false);
+}
+
+static void choose_pause(int idx, void *ctx) {
+  static const uint16_t minutes[] = {30, 60, 120, CM_UNTIL_WORN_MIN};
+  close_pause_menu();
+  suspend_minutes(minutes[idx], true);
+}
+
+static void pause_menu_load(Window *w) {
+  static const SimpleMenuItem items[] = {
+    {.title = "30 minutes", .callback = choose_pause},
+    {.title = "1 hour", .callback = choose_pause},
+    {.title = "2 hours", .callback = choose_pause},
+    {.title = "Until worn again", .callback = choose_pause},
+  };
+  static const SimpleMenuSection section = {
+    .title = "Pause monitoring", .num_items = ARRAY_LENGTH(items), .items = items,
+  };
+  Layer *root = window_get_root_layer(w);
+  s_pause_menu = simple_menu_layer_create(layer_get_bounds(root), w, &section, 1, NULL);
+  layer_add_child(root, simple_menu_layer_get_layer(s_pause_menu));
+}
+
+static void pause_menu_unload(Window *w) {
+  simple_menu_layer_destroy(s_pause_menu);
+  s_pause_window = NULL;
+  window_destroy(w);
+}
+
+static void down_click(ClickRecognizerRef ref, void *ctx) {
+  if (s_pause_window) return;
+  s_auto_launched = false;  /* user navigation now owns the window stack */
+  s_pause_window = window_create();
+  window_set_window_handlers(s_pause_window, (WindowHandlers){
+      .load = pause_menu_load, .unload = pause_menu_unload});
+  window_stack_push(s_pause_window, true);
 }
 
 /* Carry mode: timer-only suspension for deliberate off-wrist transport.
@@ -717,7 +799,8 @@ static void select_click(ClickRecognizerRef ref, void *ctx) {
   text_layer_set_text(s_detail_layer, HINTS_TEXT);
   AppWorkerMessage m = {0};
   app_worker_send_message(WMSG_USER_OK, &m); /* manual check-in / resume */
-  text_layer_set_text(s_status_layer, "Checked in");
+  if (s_watch_charging) render_idle();
+  else text_layer_set_text(s_status_layer, s_watch_paused ? "Resuming..." : "Checked in");
 }
 
 static void down_long_click(ClickRecognizerRef ref, void *ctx) {
@@ -729,6 +812,7 @@ static void main_click_config(void *ctx) {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click);
   window_single_click_subscribe(BUTTON_ID_UP, up_click);
   window_long_click_subscribe(BUTTON_ID_UP, 700, up_long_click, NULL);
+  window_single_click_subscribe(BUTTON_ID_DOWN, down_click);
   window_long_click_subscribe(BUTTON_ID_DOWN, 700, down_long_click, NULL);
 }
 
@@ -759,6 +843,12 @@ static void main_window_load(Window *w) {
   text_layer_set_text(s_status_layer, "Monitoring");
   layer_add_child(root, text_layer_get_layer(s_status_layer));
 
+  s_middle_cue = text_layer_create(GRect(4, b.size.h / 2 - 12, b.size.w - 10, 26));
+  text_layer_set_font(s_middle_cue, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_alignment(s_middle_cue, GTextAlignmentRight);
+  text_layer_set_background_color(s_middle_cue, GColorClear);
+  layer_add_child(root, text_layer_get_layer(s_middle_cue));
+
   s_diag_layer = text_layer_create(
       GRect(0, STATUS_BAR_LAYER_HEIGHT + 76, b.size.w, 54));  /* two Gothic 18 lines
                                    need ~50 px; 44 clipped the second (field 2026-10-26) */
@@ -766,6 +856,7 @@ static void main_window_load(Window *w) {
   text_layer_set_text_alignment(s_diag_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_diag_layer, GColorClear);
   text_layer_set_text_color(s_diag_layer, fg);
+  text_layer_set_text_color(s_middle_cue, fg);
   layer_set_hidden(text_layer_get_layer(s_diag_layer), true);
   layer_add_child(root, text_layer_get_layer(s_diag_layer));
 
@@ -781,6 +872,7 @@ static void main_window_load(Window *w) {
 static void main_window_unload(Window *w) {
   status_bar_layer_destroy(s_status_bar);
   text_layer_destroy(s_status_layer);
+  text_layer_destroy(s_middle_cue);
   text_layer_destroy(s_diag_layer);
   s_diag_layer = NULL;
   text_layer_destroy(s_detail_layer);

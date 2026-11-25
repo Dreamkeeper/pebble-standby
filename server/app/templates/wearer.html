@@ -15,8 +15,7 @@
 </div>
 
 <h3>Contacts & tiers</h3>
-{% if degraded %}<p class="danger">DEGRADED — alarms for this wearer reach
-nobody. Add a contact with a working channel.</p>{% endif %}
+{% if degraded %}<p><strong class="state st-degraded">Needs attention</strong> Alerts reach nobody. Add a contact with a working channel.</p>{% endif %}
 <table>
   <tr><th>Name</th><th>Tier</th><th>Telegram</th><th>ntfy</th><th>Email</th>
       {% if op.role == 'admin' %}<th></th>{% endif %}</tr>

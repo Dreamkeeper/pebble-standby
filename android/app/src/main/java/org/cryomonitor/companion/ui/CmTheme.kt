@@ -38,24 +38,26 @@ private val LightCaution = CautionColors(
     cautionContainer = Color(0xFFFFDEA6), onCautionContainer = Color(0xFF271900))
 private val DarkCaution = CautionColors(
     caution = Color(0xFFF5B942), onCaution = Color(0xFF412D00),
-    cautionContainer = Color(0xFF5D3F00), onCautionContainer = Color(0xFFFFDEA6))
+    cautionContainer = Color(0xFFFFC660), onCautionContainer = Color(0xFF352100))
 
 private val BrandLight: ColorScheme = lightColorScheme(
     primary = Color(0xFF00696B), onPrimary = Color.White,
-    primaryContainer = Color(0xFF6FF6F8), onPrimaryContainer = Color(0xFF002020),
+    primaryContainer = Color(0xFF086641), onPrimaryContainer = Color.White,
+    secondary = Color(0xFF70416C),
     tertiary = Color(0xFF3F5F90), onTertiary = Color.White,
     tertiaryContainer = Color(0xFFD5E3FF), onTertiaryContainer = Color(0xFF001B3C),
 )
 private val BrandDark: ColorScheme = darkColorScheme(
     primary = Color(0xFF4CDADC), onPrimary = Color(0xFF003738),
-    primaryContainer = Color(0xFF004F51), onPrimaryContainer = Color(0xFF6FF6F8),
+    primaryContainer = Color(0xFF145A3E), onPrimaryContainer = Color(0xFFE2FFEC),
+    secondary = Color(0xFFEDB5E5),
     tertiary = Color(0xFFA7C8FF), onTertiary = Color(0xFF07305F),
     tertiaryContainer = Color(0xFF264777), onTertiaryContainer = Color(0xFFD5E3FF),
 )
 
 /** The alarm screen never follows theme or wallpaper (DESIGN §7). */
 object AlarmPalette {
-    val countdownBackground = Color(0xFF8A3B00)
+    val countdownBackground = Color(0xFF922635)
     val alarmBackground = Color(0xFFB00020)
     val onAlarm = Color.White
     val cancelContainer = Color.White
@@ -79,6 +81,10 @@ fun CmTheme(content: @Composable () -> Unit) {
 
 /** Shorthand used by the state cards. */
 object CmColors {
+    // Semantic roles stay legible and recognizable even with wallpaper colours.
+    val roles: ColorScheme
+        @Composable get() = if (isSystemInDarkTheme()) BrandDark else BrandLight
+
     val caution: CautionColors
         @Composable get() = LocalCaution.current
 }

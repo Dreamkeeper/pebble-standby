@@ -1,6 +1,6 @@
 <table>
-  <tr><th>Wearer</th><th>State</th><th>Last heartbeat</th><th>Battery</th>
-      <th>Escalations</th></tr>
+  <tr><th>Wearer</th><th>State</th><th>Last phone report</th><th>Battery</th>
+      <th>Active alerts</th></tr>
   {% for w in fleet %}
   <tr>
     <td><a href="/ui/wearers/{{ w.id }}">{{ w.name }}</a>
@@ -12,8 +12,7 @@
     </td>
     <td>{{ w.last_hb }}</td>
     <td>{{ w.battery if w.battery is not none else "—" }}</td>
-    <td>{% if w.escalations %}<span class="danger">{{ w.escalations }}</span>
-        {% else %}0{% endif %}</td>
+    <td>{{ w.escalations }}</td>
   </tr>
   {% endfor %}
 </table>

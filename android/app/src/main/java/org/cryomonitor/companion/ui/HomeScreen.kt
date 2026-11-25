@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +37,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -104,7 +108,15 @@ fun HomeScreen(
             // ringing and nothing is already paused.
             var pauseSheet by remember { mutableStateOf(false) }
             if (verdict.state == Coverage.COVERED || verdict.state == Coverage.NEEDS_ATTENTION) {
-                FilledTonalButton(onClick = { pauseSheet = true }, modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(
+                    onClick = { pauseSheet = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = CmColors.roles.tertiaryContainer,
+                        contentColor = CmColors.roles.onTertiaryContainer),
+                ) {
+                    Icon(painterResource(R.drawable.ic_pause), null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.home_pause))
                 }
             }
@@ -113,6 +125,7 @@ fun HomeScreen(
 
             InfoCard(
                 title = stringResource(R.string.home_watch),
+                icon = R.drawable.ic_watch, tint = CmColors.roles.primary,
                 headline = if (facts.watchConnected) stringResource(R.string.home_watch_linked)
                            else stringResource(R.string.home_watch_not_linked),
                 lines = listOfNotNull(
@@ -138,6 +151,7 @@ fun HomeScreen(
             }
             InfoCard(
                 title = stringResource(R.string.home_people),
+                icon = R.drawable.ic_people, tint = CmColors.roles.secondary,
                 headline = peopleHeadline,
                 lines = emptyList(),
                 onClick = onOpenContacts,
@@ -150,6 +164,7 @@ fun HomeScreen(
 
             InfoCard(
                 title = stringResource(R.string.home_server),
+                icon = R.drawable.ic_server, tint = CmColors.roles.tertiary,
                 headline = when {
                     !facts.serverConfigured -> stringResource(R.string.home_server_none)
                     facts.serverReachable -> stringResource(R.string.home_server_reachable)
@@ -167,12 +182,12 @@ fun HomeScreen(
 @Composable
 private fun VerdictCard(v: CoverageVerdict, onAction: (CoverageAction) -> Unit) {
     val caution = CmColors.caution
-    val scheme = MaterialTheme.colorScheme
+    val scheme = CmColors.roles
     val (bg, fg) = when (v.state) {
         Coverage.COVERED -> scheme.primaryContainer to scheme.onPrimaryContainer
         Coverage.PAUSED -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-        Coverage.NEEDS_ATTENTION, Coverage.CHECK_IN -> caution.cautionContainer to caution.onCautionContainer
-        Coverage.ALARM -> scheme.errorContainer to scheme.onErrorContainer
+        Coverage.NEEDS_ATTENTION -> caution.cautionContainer to caution.onCautionContainer
+        Coverage.COUNTDOWN, Coverage.ALARM -> scheme.error to scheme.onError
         Coverage.NOT_SET_UP -> scheme.surfaceVariant to scheme.onSurfaceVariant
     }
     Card(
@@ -180,7 +195,17 @@ private fun VerdictCard(v: CoverageVerdict, onAction: (CoverageAction) -> Unit) 
         colors = CardDefaults.cardColors(containerColor = bg, contentColor = fg),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(v.title, style = MaterialTheme.typography.headlineMedium)
+            val icon = when (v.state) {
+                Coverage.COVERED -> R.drawable.ic_covered
+                Coverage.PAUSED -> R.drawable.ic_pause
+                Coverage.NEEDS_ATTENTION, Coverage.COUNTDOWN, Coverage.ALARM -> R.drawable.ic_attention
+                Coverage.NOT_SET_UP -> R.drawable.ic_watch
+            }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(painterResource(icon), null, Modifier.size(26.dp))
+                Text(v.title, style = MaterialTheme.typography.headlineSmall)
+            }
             Text(v.reason, style = MaterialTheme.typography.bodyLarge)
             if (v.action != null && v.actionLabel != null) {
                 Spacer(Modifier.height(4.dp))
@@ -198,17 +223,20 @@ private fun VerdictCard(v: CoverageVerdict, onAction: (CoverageAction) -> Unit) 
 @Composable
 private fun InfoCard(
     title: String,
+    icon: Int,
+    tint: Color,
     headline: String,
     lines: List<String>,
     onClick: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
 ) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    androidx.compose.material3.OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Icon(painterResource(icon), null, Modifier.size(24.dp), tint = tint)
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.labelLarge,
-                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(headline, style = MaterialTheme.typography.titleMedium)
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(headline, style = MaterialTheme.typography.bodyMedium)
                 lines.forEach {
                     Text(it, style = MaterialTheme.typography.bodyMedium,
                          color = MaterialTheme.colorScheme.onSurfaceVariant)

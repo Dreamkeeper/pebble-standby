@@ -27,6 +27,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -97,9 +101,16 @@ fun onResumeTick(): Int {
 
 @Composable
 private fun SectionHeader(text: Int) {
-    Text(stringResource(text), style = MaterialTheme.typography.titleSmall,
-         color = MaterialTheme.colorScheme.primary,
-         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp))
+    val roles = CmColors.roles
+    val accent = when (text) {
+        R.string.settings_section_detectors -> roles.primary
+        R.string.settings_section_who -> roles.secondary
+        else -> roles.tertiary
+    }
+    Text(stringResource(text), style = MaterialTheme.typography.titleSmall, color = accent,
+         modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+             .background(accent.copy(alpha = 0.07f)).semantics { heading() }
+             .padding(horizontal = 16.dp, vertical = 8.dp))
 }
 
 /** A settings row: title, its current state as the value line, optional switch. */
@@ -107,8 +118,8 @@ private fun SectionHeader(text: Int) {
 private fun ValueRow(title: String, value: String, onClick: (() -> Unit)?,
                      trailing: (@Composable () -> Unit)? = null) {
     ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(value) },
+        headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
+        supportingContent = { Text(value, style = MaterialTheme.typography.bodyMedium) },
         trailingContent = trailing,
         modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
     )
@@ -158,7 +169,10 @@ fun SettingsScreen(
             Detector.entries.forEach { d ->
                 val enabled = cfg.detectorEnabled(d.enabledField)
                 ValueRow(stringResource(d.title), detectorValueLine(d, cfg), onClick = { onDetector(d) }) {
-                    Switch(checked = enabled, onCheckedChange = {
+                    Switch(checked = enabled,
+                        colors = SwitchDefaults.colors(checkedTrackColor = CmColors.roles.primary,
+                            checkedThumbColor = CmColors.roles.onPrimary),
+                        onCheckedChange = {
                         cfg.set(d.enabledField, if (it) 1 else 0)
                         notifyWatchConfigChanged(context)
                         revision++

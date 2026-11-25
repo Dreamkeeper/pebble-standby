@@ -46,15 +46,15 @@ class CoverageStateTest {
     }
 
     @Test
-    fun `alarm beats everything, countdown is a check-in`() {
+    fun `alarm beats everything and the countdown has its own verdict`() {
         val alarm = v(covered.copy(alertStage = 2, alertDetector = "impact", watchConnected = false,
                                    noDeliverableContacts = true))
         assertEquals(Coverage.ALARM, alarm.state)
         assertEquals("Hard impact, then no movement.", alarm.reason)
         assertEquals(CoverageAction.CANCEL_ALARM, alarm.action)
         val pre = v(covered.copy(alertStage = 1, alertDetector = "pulse"))
-        assertEquals(Coverage.CHECK_IN, pre.state)
-        assertEquals("Are you OK?", pre.title)
+        assertEquals(Coverage.COUNTDOWN, pre.state)
+        assertEquals("Alarm countdown", pre.title)
         assertEquals("No pulse signal while still.", pre.reason)
     }
 
