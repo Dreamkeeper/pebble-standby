@@ -1,7 +1,5 @@
-# Pinned base image (harden-ci step 10): python 3.12.14-slim, published
-# 2026-09-25, digest read from Docker Hub on 2026-10-13. Update the tag
-# and the digest together.
-FROM python:3.12.14-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
+# Pin both the Python release and its image digest.
+FROM python:3.15.1-slim@sha256:533b0b2f9b5d46fd097091cf826f27902f1d6c3bca714b6dc74551356aa97a51
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -16,7 +14,12 @@ RUN apt-get update && apt-get -y --no-install-recommends upgrade     && apt-get 
 WORKDIR /srv
 COPY requirements.txt .
 # Every package, direct and transitive, must match a hash in the lock.
-RUN pip install --require-hashes -r requirements.txt
+# The running server needs no package installer. Remove pip and its bundled
+# bootstrap copy after verifying the installed dependency set.
+RUN python -m pip install --only-binary=:all: --require-hashes -r requirements.txt \
+    && python -m pip check \
+    && python -m pip uninstall -y pip \
+    && python -c "import ensurepip, pathlib, shutil; shutil.rmtree(pathlib.Path(ensurepip.__file__).parent)"
 COPY app ./app
 # A build context on DSM carries owner-only ACL modes into the image: the
 # code must be readable by UID 10001 (field 2026-10-14: PermissionError on

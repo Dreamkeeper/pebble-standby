@@ -33,7 +33,7 @@ object Ui {
     fun onErrorContainer(v: View): Int = MaterialColors.getColor(
         v, com.google.android.material.R.attr.colorOnErrorContainer)
     fun error(v: View): Int = MaterialColors.getColor(
-        v, com.google.android.material.R.attr.colorError)
+        v, androidx.appcompat.R.attr.colorError)
     fun onError(v: View): Int = MaterialColors.getColor(
         v, com.google.android.material.R.attr.colorOnError)
     fun primaryContainer(v: View): Int = MaterialColors.getColor(
