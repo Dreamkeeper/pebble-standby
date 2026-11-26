@@ -5,9 +5,9 @@ plugins {
     // needs AGP 9.x and therefore Gradle 9.x (same toolchain as the Pebble
     // app: AGP 9.3.1 / Kotlin 2.4.10 / Gradle 9.6.1). Built-in Kotlin is
     // opted out of in gradle.properties so this plugin block stays valid.
-    id("com.android.application") version "9.3.1"
-    id("org.jetbrains.kotlin.android") version "2.4.21"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
+    id("com.android.application") version "9.5.3"
+    id("org.jetbrains.kotlin.android") version "2.4.10"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.10"
 }
 
 android {
