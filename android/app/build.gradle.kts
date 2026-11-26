@@ -6,8 +6,8 @@ plugins {
     // app: AGP 9.3.1 / Kotlin 2.4.10 / Gradle 9.6.1). Built-in Kotlin is
     // opted out of in gradle.properties so this plugin block stays valid.
     id("com.android.application") version "9.3.1"
-    id("org.jetbrains.kotlin.android") version "2.4.10"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.10"
+    id("org.jetbrains.kotlin.android") version "2.4.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
 }
 
 android {
@@ -84,7 +84,7 @@ kotlin {
 dependencies {
     // PebbleKit2: primary watch transport (Core app >= 1.0.7.7).
     // The Classic intent transport in PebbleTransport.kt stays as fallback.
-    implementation("io.rebble.pebblekit2:client:1.3.1")
+    implementation("io.rebble.pebblekit2:client:1.3.2")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
