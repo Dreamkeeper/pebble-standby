@@ -78,7 +78,7 @@ services:
   ntfy:
     # v2.28.0 (2026-08-27), digest from Docker Hub on 2026-10-13; the two
     # newer releases were under seven days old at that date.
-    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    image: binwiederhier/ntfy:v2.38.1@sha256:038da2be5e668fee6d36a62884eea48975e1b71c29a56964e5298c1b9165a573
     command: serve
     restart: unless-stopped
     # ntfy has no authentication configured: anyone who reaches this port
