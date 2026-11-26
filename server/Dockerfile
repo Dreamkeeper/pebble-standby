@@ -14,7 +14,12 @@ RUN apt-get update && apt-get -y --no-install-recommends upgrade     && apt-get 
 WORKDIR /srv
 COPY requirements.txt .
 # Every package, direct and transitive, must match a hash in the lock.
-RUN pip install --require-hashes -r requirements.txt
+# The running server needs no package installer. Remove pip and its bundled
+# bootstrap copy after verifying the installed dependency set.
+RUN python -m pip install --only-binary=:all: --require-hashes -r requirements.txt \
+    && python -m pip check \
+    && python -m pip uninstall -y pip \
+    && python -c "import ensurepip, pathlib, shutil; shutil.rmtree(pathlib.Path(ensurepip.__file__).parent)"
 COPY app ./app
 # A build context on DSM carries owner-only ACL modes into the image: the
 # code must be readable by UID 10001 (field 2026-10-14: PermissionError on
