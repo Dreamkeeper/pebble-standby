@@ -76,10 +76,8 @@ Architecture lineage: a Kotlin port of OpenSeizureDetector's
 
 ## Build
 
-Requirements: JDK 17, Android SDK platform 37.1, **Gradle 9.6+** (AGP
-9.5.3, Kotlin 2.4.21). There
-is no Gradle wrapper in this directory; use a local Gradle 9.6
-install. Android Studio is not required.
+Requirements: JDK 17, Android SDK platform 37.1, **Gradle 9.9.2** (AGP
+9.5.3, Kotlin 2.4.21). Use a local Gradle installation. Android Studio is not required.
 
 ```bash
 cd android

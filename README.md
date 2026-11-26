@@ -122,7 +122,7 @@ cd watchapp && pebble build     # -> build/watchapp.pbw (emery/diorite/flint/gab
 Install: sideload the `.pbw` via the Pebble/Core mobile app or
 Rebble Sideload Helper.
 
-**Android companion** (JDK 17, Android SDK platform 37.1, Gradle 9.6+, AGP 9.5.3):
+**Android companion** (JDK 17, Android SDK platform 37.1, Gradle 9.9.2, AGP 9.5.3):
 
 ```bash
 cd android && gradle assembleSideloadRelease
