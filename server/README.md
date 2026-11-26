@@ -1,6 +1,6 @@
 # Standby — server
 
-Self-hosted backend (Python 3.12, FastAPI, SQLite, Docker). Optional but
+Self-hosted backend (Python 3.15, FastAPI, SQLite, Docker). Optional but
 recommended: it is what turns an alarm into *someone actually
 responding*.
 

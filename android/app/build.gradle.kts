@@ -1,18 +1,17 @@
 import java.util.Properties
 
 plugins {
-    // PebbleKit2 >= 1.3.0 (data-log delivery) requires compileSdk 37, which
-    // needs AGP 9.x and therefore Gradle 9.x (same toolchain as the Pebble
-    // app: AGP 9.3.1 / Kotlin 2.4.10 / Gradle 9.6.1). Built-in Kotlin is
-    // opted out of in gradle.properties so this plugin block stays valid.
+    // Built-in Kotlin is opted out of in gradle.properties.
     id("com.android.application") version "9.5.3"
-    id("org.jetbrains.kotlin.android") version "2.4.10"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.10"
+    id("org.jetbrains.kotlin.android") version "2.4.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
 }
 
 android {
     namespace = "org.cryomonitor.companion"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
 
     defaultConfig {
         applicationId = "org.cryomonitor.companion"
