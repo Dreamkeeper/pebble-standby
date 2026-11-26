@@ -34,7 +34,8 @@ class MonitorService : Service(), PebbleTransport.Listener {
     private lateinit var soak: SoakStats
 
     @Volatile private var lastWatchDataT = 0L
-    @Volatile private var watchBattery: Int? = null
+    @Volatile private var batteryReading: WatchBatteryReading? = null
+    private val watchBattery: Int? get() = batteryReading?.percent
     @Volatile private var drillT0 = 0L   // S1 latency drill start (epoch ms)
     @Volatile private var chargingHold = false  // watch on charger = paused
     @Volatile private var workerLastRecT = 0L   // last DataLogging record (arrival)
@@ -152,7 +153,9 @@ class MonitorService : Service(), PebbleTransport.Listener {
         // (review 2026-08-29 finding 5).
         workerProvisionFaulted = false
         workerLastProofT = System.currentTimeMillis()
-        (data[PebbleTransport.KEY_WATCH_BATTERY] as? Int)?.let { noteWatchBattery(it) }
+        (data[PebbleTransport.KEY_WATCH_BATTERY] as? Int)?.let {
+            noteWatchBattery(it, System.currentTimeMillis() / 1000)
+        }
 
         when (data[PebbleTransport.KEY_MSG_TYPE] as? Int) {
             Protocol.PMSG_HEARTBEAT -> {
@@ -735,9 +738,12 @@ class MonitorService : Service(), PebbleTransport.Listener {
      * this stays tiny). The debug screen derives %/hour and projected
      * days from it — the phone-local complement of the server trail.
      */
-    private fun noteWatchBattery(pct: Int) {
-        if (pct == watchBattery) return
-        watchBattery = pct
+    @Synchronized
+    private fun noteWatchBattery(pct: Int, sampleS: Long) {
+        val previous = batteryReading
+        val latest = WatchBatteryReading.latest(previous, pct, sampleS, System.currentTimeMillis() / 1000)
+        batteryReading = latest
+        if (latest == null || latest.percent == previous?.percent) return
         runCatching {
             val prefs = getSharedPreferences("batt_hist", MODE_PRIVATE)
             val hist = (prefs.getString("points", "") ?: "")
@@ -816,7 +822,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                   else ((System.currentTimeMillis() - lastWatchDataT) / 1000).toInt()
         val pausedUntil = maxOf(suspendedUntilT, settings.pauseUntilT)
             .takeIf { it > System.currentTimeMillis() }
-        val ack = server.heartbeat(pct, watchBattery, age,
+        val ack = server.heartbeat(pct, batteryReading, age,
                                    lowBatteryWarning = pct in 1..15,
                                    commandAck = pendingCommandAck,
                                    suspendedUntilT = pausedUntil)
@@ -896,7 +902,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 val bm = getSystemService(BatteryManager::class.java)
                 val pct = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
                 val ack = if (server.configured)
-                    server.heartbeat(pct, watchBattery, null,
+                    server.heartbeat(pct, batteryReading, null,
                                      lowBatteryWarning = false) else null
                 serverReachable = ack != null
                 if (ack != null) onDegradedState(ack.degraded)
@@ -932,8 +938,7 @@ class MonitorService : Service(), PebbleTransport.Listener {
                 }
                 soak.inc(SoakStats.DL_RECORDS)
                 intent.getStringExtra("transport")?.let { s5Transport = it }
-                intent.getIntExtra("battery", -1)
-                    .takeIf { it in 0..100 }?.let { noteWatchBattery(it) }
+                noteWatchBattery(intent.getIntExtra("battery", -1), intent.getLongExtra("record_epoch_s", 0L))
                 // Records carry the worker's own state: sync display truth
                 // that AppMessage can miss while the watchapp is closed
                 // (field bug: SUSPENDED 20m shown long after auto-resume).

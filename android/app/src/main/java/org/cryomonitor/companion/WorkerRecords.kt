@@ -105,6 +105,7 @@ object WorkerRecords {
                 Intent(context, MonitorService::class.java)
                     .setAction(MonitorService.ACTION_WORKER_HEARTBEAT)
                     .putExtra("battery", r.battery)
+                    .putExtra("record_epoch_s", r.epochS)
                     .putExtra("stage", r.stage)
                     .putExtra("suspended", r.suspended)
                     .putExtra("flags", r.flags)

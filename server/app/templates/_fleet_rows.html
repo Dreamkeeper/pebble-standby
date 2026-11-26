@@ -11,9 +11,8 @@
       {% endfor %}
     </td>
     <td>{{ w.last_hb }}</td>
-    {% for level in (w.phone_battery, w.watch_battery) %}
-    <td>{{ '%d%%' | format(level) if level is not none and 0 <= level <= 100 else '—' }}</td>
-    {% endfor %}
+    <td>{{ '%d%%' | format(w.phone_battery) if w.phone_battery is not none and 0 <= w.phone_battery <= 100 else '—' }}</td>
+    <td>{% if w.watch_battery is not none and 0 <= w.watch_battery <= 100 %}{{ w.watch_battery }}% · {{ w.watch_battery_age }}{% else %}—{% endif %}</td>
     <td>{{ w.escalations }}</td>
   </tr>
   {% endfor %}

@@ -145,9 +145,9 @@ def test_fleet_battery_columns(appenv_ui):
     ui_login(client)
     for point, expected in [
         (None, ("—", "—")),
-        ((90, 5), ("90%", "5%")),
+        ((90, 5), ("90%", "5% · time unknown")),
         ((0, None), ("0%", "—")),
-        ((-1, 0), ("—", "0%")),
+        ((-1, 0), ("—", "0% · time unknown")),
         ((None, -1), ("—", "—")),
     ]:
         if point is not None:
@@ -158,6 +158,18 @@ def test_fleet_battery_columns(appenv_ui):
             assert "<th>Phone battery</th><th>Watch battery (last known)</th>" in page.text
             cells = re.findall(r"<td>([^<>]*)</td>", page.text)
             assert tuple(cells[-3:-1]) == expected
+
+
+def test_phone_repeats_old_battery_observation(appenv_ui):
+    client = appenv_ui.client
+    ui_login(client)
+    observed = int(time.time()) - 12 * 60
+    heartbeat = {"watch_battery_pct": 53, "watch_battery_observed_at": observed}
+    for _ in range(2):
+        assert client.post("/api/v1/heartbeat", headers=wearer_headers(), json=heartbeat).is_success
+    assert [p["watch_battery_observed_at"] for p in appenv_ui.store.heartbeat_trail("default")] == [observed] * 2
+    for path in ("/ui/", "/ui/fragments/fleet"):
+        assert "<td>53% · 12m ago</td>" in client.get(path).text
 
 
 def test_drill_and_real_alarm_have_separate_badges(appenv_ui):

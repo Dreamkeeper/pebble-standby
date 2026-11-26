@@ -169,6 +169,7 @@ class HeartbeatIn(BaseModel):
     token: str = ""
     phone_battery_pct: int | None = Field(default=None, ge=-1, le=100)
     watch_battery_pct: int | None = Field(default=None, ge=-1, le=100)
+    watch_battery_observed_at: int | None = Field(default=None, ge=0, le=0xFFFFFFFF)
     watch_data_age_s: int | None = Field(default=None, ge=0, le=10**9)
     suspended_until: float | None = None
     low_battery_warning: bool = False
@@ -243,8 +244,10 @@ def heartbeat(hb: HeartbeatIn, authorization: str | None = Header(default=None))
         if hb.low_battery_warning:
             m.low_battery_notice(t)
         _persist_deadman(auth.wearer_id)
-    db.add_heartbeat_point(auth.wearer_id, hb.phone_battery_pct,
-                           hb.watch_battery_pct)
+    observed = hb.watch_battery_observed_at
+    if hb.watch_battery_pct in (None, -1) or not observed or observed > t:
+        observed = None
+    db.add_heartbeat_point(auth.wearer_id, hb.phone_battery_pct, hb.watch_battery_pct, observed)
     db.set_suspended_until(auth.wearer_id, hb.suspended_until)
     log.debug("heartbeat %s battery=%s watch_age=%s", auth.wearer_id,
               hb.phone_battery_pct, hb.watch_data_age_s)

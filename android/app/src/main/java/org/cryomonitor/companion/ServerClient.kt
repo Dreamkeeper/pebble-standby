@@ -165,13 +165,16 @@ class ServerClient(
 
     // ---- monitoring-path calls (unchanged behavior) ----
 
-    fun heartbeat(phoneBatteryPct: Int, watchBatteryPct: Int?, watchDataAgeS: Int?,
+    fun heartbeat(phoneBatteryPct: Int, watchBattery: WatchBatteryReading?, watchDataAgeS: Int?,
                   lowBatteryWarning: Boolean, commandAck: String? = null,
                   suspendedUntilT: Long? = null): HeartbeatAck? {
         val resp = call("POST", "/api/v1/heartbeat", JSONObject().apply {
             put("phone_battery_pct", phoneBatteryPct)
             suspendedUntilT?.let { put("suspended_until", it / 1000.0) }
-            watchBatteryPct?.let { put("watch_battery_pct", it) }
+            watchBattery?.let { reading ->
+                put("watch_battery_pct", reading.percent)
+                reading.observedAtS?.let { put("watch_battery_observed_at", it) }
+            }
             watchDataAgeS?.let { put("watch_data_age_s", it) }
             put("low_battery_warning", lowBatteryWarning)
             commandAck?.let { put("command_ack", it) }

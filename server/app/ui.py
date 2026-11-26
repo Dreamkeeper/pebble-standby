@@ -129,6 +129,8 @@ def build_fleet() -> list[dict]:
             "score": score, "last_hb": _fmt(m.last_heartbeat_t),
             "phone_battery": report.get("battery"),
             "watch_battery": report.get("watch_battery"),
+            "watch_battery_age": (_fmt(report["watch_battery_observed_at"])
+                                  if report.get("watch_battery_observed_at") else "time unknown"),
             "escalations": sum(1 for wid, e in rt.escalations.values()
                                if wid == w["id"] and not e.resolved),
         })

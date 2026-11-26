@@ -13,3 +13,11 @@ The fleet SHALL show “Phone battery” and “Watch battery (last known)” fr
 #### Scenario: The phone has no watch reading
 - **WHEN** the phone reports its own battery at 61% and supplies no watch level
 - **THEN** both the initial fleet page and its refreshed row show 61% for the phone and — for the watch
+
+#### Scenario: Repeated phone report with a cached battery
+- **WHEN** the companion forwards a cached watch percentage
+- **THEN** it SHALL send the original observation time, and the fleet SHALL show its age beside the percentage on initial load and refresh. A valid percentage without a timestamp SHALL show “time unknown”.
+
+#### Scenario: Repeated values and delayed records
+- **WHEN** a new watch message reports the same percentage
+- **THEN** the companion SHALL advance the observation time. For a buffered worker record it SHALL use the record epoch and retain a newer known observation if an older record arrives later.

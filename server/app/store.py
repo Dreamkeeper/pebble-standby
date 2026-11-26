@@ -19,7 +19,7 @@ import sqlite3
 import time
 import uuid
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
@@ -121,6 +121,13 @@ class Store:
                     c.executescript(_SCHEMA_V4)
                 if row["version"] < SCHEMA_VERSION:
                     c.execute("UPDATE schema_version SET version=?", (SCHEMA_VERSION,))
+
+            # The version write above holds the SQLite write lock. Keep the
+            # nullable column and version marker in the same transaction.
+            if row is None or row["version"] < 5:
+                columns = c.execute("PRAGMA table_info(heartbeat_trail)").fetchall()
+                if not any(col["name"] == "watch_battery_observed_at" for col in columns):
+                    c.execute("ALTER TABLE heartbeat_trail ADD COLUMN watch_battery_observed_at INTEGER")
 
     @contextlib.contextmanager
     def _conn(self):
@@ -447,11 +454,12 @@ class Store:
     # -- heartbeat trail (dashboard battery graph) --
 
     def add_heartbeat_point(self, wearer_id: str, battery: int | None,
-                            watch_battery: int | None = None) -> None:
+                            watch_battery: int | None = None,
+                            watch_battery_observed_at: int | None = None) -> None:
         with self._conn() as c:
             c.execute("INSERT INTO heartbeat_trail (wearer_id, t, battery, "
-                      "watch_battery) VALUES (?,?,?,?)",
-                      (wearer_id, time.time(), battery, watch_battery))
+                      "watch_battery, watch_battery_observed_at) VALUES (?,?,?,?,?)",
+                      (wearer_id, time.time(), battery, watch_battery, watch_battery_observed_at))
             c.execute("DELETE FROM heartbeat_trail WHERE wearer_id=? AND t < ?",
                       (wearer_id, time.time() - 48 * 3600))
 
@@ -479,7 +487,7 @@ class Store:
 
     def heartbeat_trail(self, wearer_id: str, limit: int = 288) -> list[dict]:
         with self._conn() as c:
-            rows = c.execute("SELECT t, battery, watch_battery FROM heartbeat_trail WHERE "
+            rows = c.execute("SELECT t, battery, watch_battery, watch_battery_observed_at FROM heartbeat_trail WHERE "
                              "wearer_id=? ORDER BY t DESC LIMIT ?",
                              (wearer_id, limit)).fetchall()
             return [dict(r) for r in reversed(rows)]

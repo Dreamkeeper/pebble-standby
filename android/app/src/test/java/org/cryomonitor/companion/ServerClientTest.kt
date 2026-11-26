@@ -135,6 +135,20 @@ class ServerClientTest {
     }
 
     @Test
+    fun `heartbeats carry the battery observation time across cached reports and delayed records`() {
+        var reading = WatchBatteryReading.latest(null, 53, 100, 500)
+        for (expected in listOf(100L, 100L, 550L)) {
+            if (expected == 550L) reading = WatchBatteryReading.latest(reading, 53, 550, 560)
+            reading = WatchBatteryReading.latest(reading, 41, 80, 570)
+            server.enqueue(MockResponse().setBody("""{"state":"ok"}"""))
+            client.heartbeat(90, reading, 0, false)
+            val json = JSONObject(server.takeRequest().body.readUtf8())
+            assertEquals(53, json.getInt("watch_battery_pct"))
+            assertEquals(expected, json.getLong("watch_battery_observed_at"))
+        }
+    }
+
+    @Test
     fun `status parses degraded and escalation count`() {
         server.enqueue(MockResponse().setBody(
             """{"phone":"ok","degraded":false,
