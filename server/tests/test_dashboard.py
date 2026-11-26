@@ -1,5 +1,6 @@
 """Web dashboard: auth, roles, CSRF, fleet ordering, actions, audit,
 admin-token retirement."""
+import re
 import time
 
 from conftest import UI_ADMIN, ui_login, wearer_headers
@@ -137,6 +138,26 @@ def test_fleet_sorts_worst_first(appenv_ui):
     assert page.status_code == 200
     assert page.text.index("default") < page.text.index("calm")
     assert "Alarm active" in page.text
+
+
+def test_fleet_battery_columns(appenv_ui):
+    client = appenv_ui.client
+    ui_login(client)
+    for point, expected in [
+        (None, ("—", "—")),
+        ((90, 5), ("90%", "5%")),
+        ((0, None), ("0%", "—")),
+        ((-1, 0), ("—", "0%")),
+        ((None, -1), ("—", "—")),
+    ]:
+        if point is not None:
+            appenv_ui.store.add_heartbeat_point("default", *point)
+        for path in ("/ui/", "/ui/fragments/fleet"):
+            page = client.get(path)
+            assert page.status_code == 200
+            assert "<th>Phone battery</th><th>Watch battery (last known)</th>" in page.text
+            cells = re.findall(r"<td>([^<>]*)</td>", page.text)
+            assert tuple(cells[-3:-1]) == expected
 
 
 def test_drill_and_real_alarm_have_separate_badges(appenv_ui):

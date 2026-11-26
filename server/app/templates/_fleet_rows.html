@@ -1,6 +1,6 @@
 <table>
-  <tr><th>Wearer</th><th>State</th><th>Last phone report</th><th>Battery</th>
-      <th>Active alerts</th></tr>
+  <tr><th>Wearer</th><th>State</th><th>Last phone report</th>
+      <th>Phone battery</th><th>Watch battery (last known)</th><th>Active alerts</th></tr>
   {% for w in fleet %}
   <tr>
     <td><a href="/ui/wearers/{{ w.id }}">{{ w.name }}</a>
@@ -11,7 +11,9 @@
       {% endfor %}
     </td>
     <td>{{ w.last_hb }}</td>
-    <td>{{ w.battery if w.battery is not none else "—" }}</td>
+    {% for level in (w.phone_battery, w.watch_battery) %}
+    <td>{{ '%d%%' | format(level) if level is not none and 0 <= level <= 100 else '—' }}</td>
+    {% endfor %}
     <td>{{ w.escalations }}</td>
   </tr>
   {% endfor %}

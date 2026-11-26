@@ -42,9 +42,9 @@ New builds are published on [GitHub Releases](https://github.com/Dreamkeeper/peb
 
 <img src="docs/screenshots/android-home.png" width="285" alt="Standby Home shows Covered, Pause monitoring, a connected watch and the Fire drill action">
 
-**Web dashboard.** In this example, one wearer has a fire drill awaiting acknowledgement, another has paused monitoring, and the third wearer’s phone is reporting. The dashboard is running locally with fictional wearer data.
+**Web dashboard.** In this example, one wearer has a fire drill awaiting acknowledgement, another has paused monitoring, and the third wearer’s phone is reporting. The battery columns show the phone level and the last watch level known to the phone when it sent that report. A dash means the reading was unavailable. The screenshot uses fictional wearer data.
 
-![Standby fleet dashboard showing three wearers, their status, time since the last phone report, battery and active alerts](docs/screenshots/dashboard.png)
+![Standby fleet dashboard showing three wearers, their status, time since the last phone report, separate phone and watch battery percentages, and active alerts](docs/screenshots/dashboard.png)
 
 ## Components
 

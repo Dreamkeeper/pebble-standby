@@ -122,11 +122,13 @@ def build_fleet() -> list[dict]:
     for w in db.list_wearers():
         score, states = wearer_states(w)
         trail = db.heartbeat_trail(w["id"], limit=1)
+        report = trail[0] if trail else {}
         m = rt.get_monitor(w["id"])
         rows.append({
             "id": w["id"], "name": w["name"], "states": states,
             "score": score, "last_hb": _fmt(m.last_heartbeat_t),
-            "battery": trail[-1]["battery"] if trail else None,
+            "phone_battery": report.get("battery"),
+            "watch_battery": report.get("watch_battery"),
             "escalations": sum(1 for wid, e in rt.escalations.values()
                                if wid == w["id"] and not e.resolved),
         })
