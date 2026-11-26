@@ -92,7 +92,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Jetpack Compose + Material 3 (change companion-compose-ui): the BOM
     // pins ui/material3/activity-compose to one tested set.
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
